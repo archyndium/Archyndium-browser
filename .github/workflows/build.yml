@@ -1,0 +1,153 @@
+# ==========================================
+# 自動ビルド・リリース（GitHub Actions）
+# ==========================================
+# ・main への push / プルリクエスト … 構文チェック → Windows のインストーラーを作って「Artifacts」に置く（動作確認用）
+# ・v から始まるタグ（例: v0.1.0）を push …
+#     1. インストーラー（.exe）を作る
+#     2. コード署名する（SignPath の承認後、リポジトリの変数 SIGNPATH_ENABLED を true にした時だけ）
+#     3. 自動アップデート用の latest.yml を、署名後のファイルから作る
+#     4. GitHub Releases に「下書き」を作って .exe・latest.yml・SHA256SUMS.txt を置く
+#   → Releases の画面で内容を確認して「Publish release」を押すと公開され、
+#     インストール済みのアプリが自動アップデートで受け取る
+#
+# SignPath の設定（承認後に GitHub の Settings → Secrets and variables → Actions で登録する）
+#   Secrets   : SIGNPATH_API_TOKEN（SignPath の CI 用ユーザーの API トークン）
+#   Variables : SIGNPATH_ENABLED = true
+#               SIGNPATH_ORGANIZATION_ID（SignPath の Organization ID）
+#               SIGNPATH_PROJECT_SLUG（例: archyndium-browser）
+#               SIGNPATH_SIGNING_POLICY_SLUG（例: release-signing）
+# 詳しくは docs/CODE_SIGNING.md
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 構文チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+
+  windows:
+    name: Windows 版のビルド
+    needs: check
+    runs-on: windows-latest
+    permissions:
+      contents: write   # Releases に下書きを作るため
+      actions: read     # SignPath がビルド結果（Artifacts）を取得するため
+    env:
+      IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+      SIGN: ${{ startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # タグとアプリのバージョン（package.json）が一致しているか確認する（例: v0.1.0 と 0.1.0）
+      - name: バージョンの確認
+        if: env.IS_RELEASE == 'true'
+        shell: bash
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "::error::タグ ($TAG) と package.json の version ($PKG) が違います"
+            exit 1
+          fi
+
+      # 1. インストーラーを作る（Releases への公開はこの後で行うので、ここでは公開しない）
+      - name: インストーラーを作る
+        run: npx electron-builder --win --publish never
+
+      - name: インストーラーのファイル名を調べる
+        id: exe
+        shell: bash
+        run: echo "name=$(cd dist && ls ARCHYNDIUM-Browser-Setup-*.exe)" >> "$GITHUB_OUTPUT"
+
+      # 署名前のインストーラー（SignPath はここから取得して署名する）
+      - name: 署名前のインストーラーをアップロード
+        id: unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.SIGN == 'true' && 'unsigned-installer' || 'ARCHYNDIUM-Browser-windows' }}
+          path: dist/${{ steps.exe.outputs.name }}
+          if-no-files-found: error
+
+      # 2. コード署名（SignPath。リポジトリの変数 SIGNPATH_ENABLED が true の時だけ）
+      #    SignPath Foundation では、署名のたびに SignPath の画面で承認（Approve）が必要。承認されるまでここで待つ
+      - name: SignPath で署名する
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: dist/signed
+
+      - name: 署名済みのファイルに置き換えて、署名を確認する
+        if: env.SIGN == 'true'
+        shell: pwsh
+        env:
+          EXE: ${{ steps.exe.outputs.name }}
+        run: |
+          Move-Item -Force "dist/signed/$env:EXE" "dist/$env:EXE"
+          $sig = Get-AuthenticodeSignature "dist/$env:EXE"
+          Write-Host "署名の状態: $($sig.Status) / 署名者: $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { Write-Error '署名が正しくありません'; exit 1 }
+
+      # 3. 自動アップデート用の情報（署名後のファイルから作る）
+      - name: latest.yml を作る
+        if: env.IS_RELEASE == 'true'
+        run: node scripts/update-info.js "dist/${{ steps.exe.outputs.name }}"
+
+      # ダウンロードしたファイルが本物か確かめるためのチェックサム（README に確認方法を記載）
+      - name: SHA256SUMS.txt を作る
+        if: env.IS_RELEASE == 'true'
+        shell: bash
+        run: cd dist && sha256sum "${{ steps.exe.outputs.name }}" > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      # 4. GitHub Releases に下書きを作る（同じタグの下書きがあればファイルを差し替える）
+      - name: Releases に下書きを作る
+        if: env.IS_RELEASE == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FILES=("dist/${{ steps.exe.outputs.name }}" "dist/latest.yml" "dist/SHA256SUMS.txt")
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${FILES[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${FILES[@]}" --draft --generate-notes \
+              --title "ARCHYNDIUM Browser ${GITHUB_REF_NAME#v}"
+          fi
+
+      - name: リリース用のファイルをアップロード（確認用）
+        if: env.IS_RELEASE == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ARCHYNDIUM-Browser-windows-release
+          path: |
+            dist/${{ steps.exe.outputs.name }}
+            dist/latest.yml
+            dist/SHA256SUMS.txt

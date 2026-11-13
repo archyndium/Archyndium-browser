@@ -1,0 +1,42 @@
+# ==========================================
+# Microsoft Store 用パッケージ（MSIX / AppX）のビルド
+# ==========================================
+# 手動で実行するワークフロー（Actions タブ →「Store package」→「Run workflow」）。
+# できたファイル（.appx）を Partner Center にアップロードすると、Microsoft が署名して Store で配布する。
+# 事前に package.json の build.appx の identityName と publisher を Partner Center の値に書き換えておくこと。
+name: Store package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  appx:
+    name: Store 用パッケージのビルド
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+
+      - name: Partner Center の値が入っているか確認
+        shell: bash
+        run: |
+          if grep -q "REPLACE_WITH_PARTNER_CENTER" package.json; then
+            echo "::error::package.json の build.appx（identityName / publisher）を Partner Center の値に書き換えてください（docs/RELEASING.md 参照）"
+            exit 1
+          fi
+
+      - run: npx electron-builder --win appx --publish never
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ARCHYNDIUM-Browser-store
+          path: dist/*.appx
+          if-no-files-found: error

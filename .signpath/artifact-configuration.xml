@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SignPath の「アーティファクト設定」（何に署名するか）。
+  SignPath の画面（Project → Artifact Configurations）にこの内容を貼り付けて使う。
+  GitHub Actions からは、インストーラー（.exe）1 つだけが入った zip が届くので、その中の .exe に署名する。
+-->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <pe-file path="ARCHYNDIUM-Browser-Setup-*.exe">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

@@ -1,0 +1,116 @@
+const { contextBridge, ipcRenderer } = require('electron');
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  windowControl: (command) => ipcRenderer.send('window-control', command),
+  windowDrag: (phase, x, y) => ipcRenderer.send('window-drag', { phase, x, y }),
+  openMiniPlayer: () => ipcRenderer.send('open-mini-player'),
+  closeMiniPlayer: () => ipcRenderer.send('close-mini-player'),
+  
+  syncToMini: (data) => ipcRenderer.send('sync-to-mini', data),
+  onSyncFromMain: (callback) => ipcRenderer.on('sync-from-main', (e, data) => callback(data)),
+  
+  controlFromMini: (command) => ipcRenderer.send('control-from-mini', command),
+  onControlToMain: (callback) => ipcRenderer.on('control-to-main', (e, cmd) => callback(cmd)),
+
+  fetchLyrics: (payload) => ipcRenderer.invoke('fetch-lyrics', payload),
+  youtubeOembed: (videoId) => ipcRenderer.invoke('youtube-oembed', videoId),
+  fetchLyricsById: (id) => ipcRenderer.invoke('fetch-lyrics-by-id', id),
+  exportLrc: (content, name) => ipcRenderer.invoke('lyrics-export-lrc', content, name),
+  searchSuggest: (engine, query) => ipcRenderer.invoke('search-suggest', engine, query),
+
+  // WebContentsView APIs
+  createTab: (payload) => ipcRenderer.invoke('create-tab', payload),
+  switchTab: (payload) => ipcRenderer.send('switch-tab', payload),
+  updateTabBounds: (bounds) => ipcRenderer.send('update-tab-bounds', bounds),
+  closeTab: (tabId) => ipcRenderer.send('close-tab', tabId),
+  navigateTab: (payload) => ipcRenderer.send('navigate-tab', payload),
+  
+  tabGoBack: () => ipcRenderer.send('tab-go-back'),
+  tabGoForward: () => ipcRenderer.send('tab-go-forward'),
+  tabReload: () => ipcRenderer.send('tab-reload'),
+  
+  getTabUrl: (tabId) => ipcRenderer.invoke('get-tab-url', tabId),
+  getTabTitle: (tabId) => ipcRenderer.invoke('get-tab-title', tabId),
+
+  onTabNavigated: (callback) => ipcRenderer.on('tab-navigated', (e, data) => callback(data)),
+  onTabTitleUpdated: (callback) => ipcRenderer.on('tab-title-updated', (e, data) => callback(data)),
+  onTabFaviconUpdated: (callback) => ipcRenderer.on('tab-favicon-updated', (e, data) => callback(data)),
+  onActiveTabUpdated: (callback) => ipcRenderer.on('active-tab-updated', (e, data) => callback(data)),
+  onTabMediaEvent: (callback) => ipcRenderer.on('tab-media-event', (e, data) => callback(data)),
+
+  // ▼▼ ここから追加 ▼▼
+  onDownloadStarted: (callback) => ipcRenderer.on('download-started', (e, data) => callback(data)),
+  onDownloadProgress: (callback) => ipcRenderer.on('download-progress', (e, data) => callback(data)),
+  onDownloadCompleted: (callback) => ipcRenderer.on('download-completed', (e, data) => callback(data)),
+  openDownloadItem: (filePath) => ipcRenderer.send('open-download-item', filePath),
+  showDownloadItem: (filePath) => ipcRenderer.send('show-download-item', filePath),
+  controlDownload: (id, action) => ipcRenderer.send('download-control', { id, action }),
+  checkDownloadsExist: (paths) => ipcRenderer.invoke('downloads-check-exists', paths),
+  trashDownloadFile: (filePath) => ipcRenderer.invoke('download-trash-file', filePath),
+  retryDownload: (url, isPrivate) => ipcRenderer.send('download-retry', { url, isPrivate }),
+  getDownloadSettings: () => ipcRenderer.invoke('download-settings-get'),
+  setDownloadSetting: (key, value) => ipcRenderer.invoke('download-settings-set', key, value),
+  // ▲▲ ここまで追加 ▲▲
+  setAdblockMode: (mode) => ipcRenderer.invoke('set-adblock-mode', mode),
+  getAdblockMode: () => ipcRenderer.invoke('get-adblock-mode'),
+  setTabShield: (webContentsId, mode) => ipcRenderer.invoke('set-tab-shield', webContentsId, mode),
+  getShieldStats: (webContentsId) => ipcRenderer.invoke('get-shield-stats', webContentsId),
+  getShieldSite: (url) => ipcRenderer.invoke('shield-site-get', url),
+  setShieldSite: (url, bypassed) => ipcRenderer.invoke('shield-site-set', url, bypassed),
+  listShieldSites: () => ipcRenderer.invoke('shield-sites-list'),
+
+  popupMenu: (items) => ipcRenderer.invoke('popup-menu', items),
+  openNewWindow: (opts) => ipcRenderer.send('open-new-window', opts),
+  tearOffTab: (payload) => ipcRenderer.invoke('tab-tear-off', payload),
+  onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (e, on) => callback(on)),
+  windowCount: () => ipcRenderer.sendSync('window-count'),
+  capturePage: (webContentsId, mode) => ipcRenderer.invoke('capture-page', webContentsId, mode),
+  showFile: (filePath) => ipcRenderer.send('show-file', filePath),
+  onSearchText: (callback) => ipcRenderer.on('search-text', (e, data) => callback(data)),
+  onSpeakText: (callback) => ipcRenderer.on('speak-text', (e, data) => callback(data)),
+  onAddToNote: (callback) => ipcRenderer.on('add-to-note', (e, data) => callback(data)),
+  onPlayerRemote: (callback) => ipcRenderer.on('player-remote', (e, data) => callback(data)),
+  onMiniPlayerState: (callback) => ipcRenderer.on('mini-player-state', (e, data) => callback(data)),
+
+  // ▼ 追加：他のブラウザとの互換（ブックマークの取り込み・既定のブラウザ・PDF・DRM）
+  bookmarkSources: () => ipcRenderer.invoke('bookmark-sources'),
+  readBookmarkSource: (id) => ipcRenderer.invoke('bookmark-read-source', id),
+  importBookmarkHtml: () => ipcRenderer.invoke('bookmark-import-html'),
+  exportBookmarkHtml: (folders) => ipcRenderer.invoke('bookmark-export-html', folders),
+  setDefaultBrowser: () => ipcRenderer.invoke('set-default-browser'),
+  isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
+  printToPdf: (webContentsId, title) => ipcRenderer.invoke('print-to-pdf', webContentsId, title),
+  drmStatus: () => ipcRenderer.invoke('drm-status'),
+  takeStartupUrls: () => ipcRenderer.invoke('take-startup-urls'),
+  getUpdateState: () => ipcRenderer.invoke('update-get-state'),
+  checkForUpdate: () => ipcRenderer.invoke('update-check'),
+  installUpdate: () => ipcRenderer.send('update-install'),
+  onUpdateState: (callback) => ipcRenderer.on('update-state', (e, s) => callback(s)),
+
+  // ▼ 追加：拡張機能
+  listExtensions: () => ipcRenderer.invoke('extensions-list'),
+  installExtensionFolder: () => ipcRenderer.invoke('extensions-install-folder'),
+  installExtensionCrx: () => ipcRenderer.invoke('extensions-install-crx'),
+  installExtensionStore: (input) => ipcRenderer.invoke('extensions-install-store', input),
+  setExtensionEnabled: (key, enabled) => ipcRenderer.invoke('extensions-set-enabled', key, enabled),
+  removeExtension: (key) => ipcRenderer.invoke('extensions-remove', key),
+  openExtensionPopup: (key, anchor) => ipcRenderer.invoke('extensions-open-popup', key, anchor),
+  onExtensionsChanged: (callback) => ipcRenderer.on('extensions-changed', () => callback()),
+
+  // ▼ 追加：サイトの権限
+  onPermissionRequest: (callback) => ipcRenderer.on('permission-request', (e, data) => callback(data)),
+  onPermissionCancel: (callback) => ipcRenderer.on('permission-cancel', (e, data) => callback(data)),
+  respondPermission: (payload) => ipcRenderer.send('permission-respond', payload),
+  listPermissions: () => ipcRenderer.invoke('permissions-list'),
+  resetPermission: (origin, permission) => ipcRenderer.invoke('permissions-reset', origin, permission),
+  clearPrivateSession: () => ipcRenderer.invoke('clear-private-session'),
+  // Media controls for specific view
+  mediaTogglePlay: (tabId) => ipcRenderer.send('media-toggle-play', tabId),
+  mediaNext: (tabId) => ipcRenderer.send('media-next', tabId),
+  mediaPrev: (tabId) => ipcRenderer.send('media-prev', tabId),
+  mediaSeek: (payload) => ipcRenderer.send('media-seek', payload),
+
+  // ▼ 追加：キーボードショートカット / Ctrl+クリックで新規タブ
+  onShortcut: (callback) => ipcRenderer.on('shortcut', (e, action) => callback(action)),
+  onOpenInNewTab: (callback) => ipcRenderer.on('open-in-new-tab', (e, data) => callback(data))
+});

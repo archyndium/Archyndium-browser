@@ -1,0 +1,66 @@
+// ▼ 追加：最大化・全画面中は角を丸めない
+window.electronAPI?.onWindowMaximized?.((on) => document.body.classList.toggle('window-maximized', !!on));
+
+if (window.electronAPI) {
+  document.getElementById('btn-minimize').addEventListener('click', () => window.electronAPI.windowControl('minimize'));
+  document.getElementById('btn-maximize').addEventListener('click', () => window.electronAPI.windowControl('maximize'));
+  document.getElementById('btn-close').addEventListener('click', () => window.electronAPI.windowControl('close'));
+}
+
+const urlInput = document.getElementById('url-input');
+const nowPlayingTitle = document.getElementById('track-name');
+const webviewContainer = document.getElementById('webview-container');
+
+let tabCounter = 0;
+let activeTabId = null;
+let mediaTargetTabId = null;
+let currentLyricsText = "";
+let currentLyricsSyncManual = false;
+
+// ▼ 追加：YouTubeの再生時間を保持するための変数
+let currentMediaTime = 0;
+let currentMediaDuration = 0;
+
+// ▼ 追加：サイトのアイコン（ファビコン）表示。白い背景は付けず、読み込めない時はサイト名の頭文字を出す
+// iconUrl が無ければ、そのサイトの /favicon.ico を試す
+function siteHostOf(url) {
+    try { return new URL(url).hostname.replace(/^www\./, ''); } catch(e) { return ''; }
+}
+function defaultFaviconUrl(url) {
+    try { const u = new URL(url); return /^https?:$/.test(u.protocol) ? `${u.origin}/favicon.ico` : ''; } catch(e) { return ''; }
+}
+function siteIconHtml(url, iconUrl = '', extraClass = '') {
+    const letter = (siteHostOf(url)[0] || '•').toUpperCase();
+    const src = iconUrl || defaultFaviconUrl(url);
+    const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+    return `<div class="favicon site-icon ${src ? '' : 'no-img'} ${extraClass}" data-letter="${esc(letter)}">` +
+        (src ? `<img src="${esc(src)}" alt="" data-err="remove">` : '') + `</div>`;
+}
+
+// ▼ 追加：秒数を「1:23」のような時間表記に変換する関数
+function formatTime(seconds) {
+    if (!isFinite(seconds)) return "0:00"; // ▼ 修正：ライブ配信など長さ不明（Infinity）で "Infinity:NaN" になっていた
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// ▼ セキュリティ：画面の HTML にインラインのイベント属性（onerror="..."）を書かず、ここでまとめて処理する
+//   （Content-Security-Policy でインラインスクリプトを禁止しているため）
+//   data-err="remove" … 読み込めない画像を消して頭文字アイコンにする / "hide" … 隠すだけ（後で別の画像を入れ直す）
+document.addEventListener('error', (e) => {
+    const img = e.target;
+    if (!(img instanceof HTMLImageElement) || !img.dataset.err) return;
+    img.parentNode?.classList.add('no-img');
+    if (img.dataset.err === 'remove') img.remove();
+    else { img.style.display = 'none'; img.removeAttribute('src'); }
+}, true);
+
+// ▼ 変更：ウィンドウを掴んで動かす（上部のバー・サイドパネルの見出し）。ダブルクリックで最大化
+setupWindowDrag({ handles: '.header-drag-area, .command-header, .command-header-area', maximizeOnDoubleClick: true });
+
+// ▼ 追加：タブの URL が変わった時に呼ばれる処理の登録先（拡張機能のストア検知・DRM の案内など）
+const tabUrlChangeHooks = [];
+function onTabUrlChanged(tabId, url) {
+    tabUrlChangeHooks.forEach(fn => { try { fn(tabId, url); } catch (e) {} });
+}

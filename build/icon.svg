@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024"><g style="isolation:isolate">
+  <line x1="150" y1="290" x2="570" y2="290" stroke="#FBC12E" stroke-width="118" style="mix-blend-mode:multiply" opacity="0.93" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="150" y1="500" x2="480" y2="500" stroke="#F15A29" stroke-width="118" style="mix-blend-mode:multiply" opacity="0.93" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="150" y1="710" x2="400" y2="710" stroke="#DB3D8E" stroke-width="118" style="mix-blend-mode:multiply" opacity="0.93" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="770" y1="190" x2="770" y2="740" stroke="#5E36B4" stroke-width="124" style="mix-blend-mode:multiply" opacity="0.93" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M770 190 C 840 230, 910 290, 900 430" stroke="#C4177B" stroke-width="112" style="mix-blend-mode:multiply" opacity="0.93" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="640" cy="770" rx="175" ry="142" transform="rotate(-20 640 770)" fill="#3DB5F0" style="mix-blend-mode:multiply" opacity="0.93"/>
+</g></svg>
