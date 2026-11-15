@@ -49,6 +49,10 @@
 
 ## ダウンロード
 
+> **Code signing:** Windows installers of this project are going to be signed through the
+> [SignPath Foundation](https://signpath.org/) free code signing program for open source projects
+> (application in progress). See our [code signing policy](docs/CODE_SIGNING_POLICY.md).
+
 [Releases](https://github.com/archyndium/archyndium-browser/releases/latest) から `ARCHYNDIUM-Browser-Setup-x.x.x.exe` をダウンロードして実行してください。
 インストール後は、新しい版が出ると自動でアップデートされます。
 
