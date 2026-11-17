@@ -60,7 +60,8 @@ git push -u origin main
    - `Package/Identity/Publisher`（`CN=...`）→ `publisher`
 4. コミットして送ったら、GitHub の「Actions」→「Store package」→「Run workflow」。
 5. できた `.appx`（Artifacts）を Partner Center の「パッケージ」にアップロードする。
-6. 価格（有料にする場合）・説明文・スクリーンショット・年齢区分などを入力して提出。
+6. 価格・説明文・スクリーンショット・年齢区分などを入力して提出。
+   入力する文章とスクリーンショットは [docs/store/STORE_LISTING.md](store/STORE_LISTING.md) にまとめてあります。
    - Store 版は Microsoft が署名し、更新も Store が配ります（アプリ内の自動アップデートは Store 版では動きません）。
    - Store の審査では「runFullTrust（デスクトップアプリとしての動作）」の理由を聞かれます。
      「Web ブラウザとして、ユーザーが開いたサイトを表示し、ファイルのダウンロード・保存を行うため」などと説明します。

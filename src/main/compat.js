@@ -163,6 +163,8 @@ async function registerWindowsBrowser() {
 }
 
 async function setDefaultBrowser() {
+  // Microsoft Store 版（MSIX）はアプリの中からのレジストリ登録が反映されないので、ここでは扱わない
+  if (process.windowsStore) return { ok: false, error: 'Microsoft Store 版では未対応です' };
   if (process.platform === 'win32') {
     // Windows 10 / 11 はアプリから勝手に既定を変えられないので、登録してから「既定のアプリ」の画面を開く
     if (!(await registerWindowsBrowser())) return { ok: false, error: 'レジストリに登録できませんでした' };
@@ -205,6 +207,7 @@ function init() {
   });
 
   ipcMain.handle('set-default-browser', () => setDefaultBrowser());
+  ipcMain.handle('app-info', () => ({ store: !!process.windowsStore, version: app.getVersion() }));
   ipcMain.handle('is-default-browser', () => {
     try { return app.isDefaultProtocolClient('https'); } catch (e) { return false; }
   });

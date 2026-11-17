@@ -78,6 +78,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   importBookmarkHtml: () => ipcRenderer.invoke('bookmark-import-html'),
   exportBookmarkHtml: (folders) => ipcRenderer.invoke('bookmark-export-html', folders),
   setDefaultBrowser: () => ipcRenderer.invoke('set-default-browser'),
+  appInfo: () => ipcRenderer.invoke('app-info'),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
   printToPdf: (webContentsId, title) => ipcRenderer.invoke('print-to-pdf', webContentsId, title),
   drmStatus: () => ipcRenderer.invoke('drm-status'),

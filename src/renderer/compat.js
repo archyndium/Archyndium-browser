@@ -106,9 +106,11 @@ async function renderBrowserSettings() {
     if (!box) return;
     const isDefault = await window.electronAPI?.isDefaultBrowser?.().catch(() => false);
     const upd = await window.electronAPI?.getUpdateState?.().catch(() => null) || {};
+    // Microsoft Store 版では「既定のブラウザにする」は使えないので出さない
+    const appInfo = await window.electronAPI?.appInfo?.().catch(() => null) || {};
     box.innerHTML =
         settingRow({ icon: '↻', label: `アップデートを確認（現在 v${escapeHtml(upd.current || '')}）`, sub: updateStatusText(upd), attrs: 'data-compat="update"' }) +
-        settingRow({ icon: '◎', label: '既定のブラウザにする', sub: isDefault ? '現在、既定のブラウザです' : '他のアプリでリンクを開いた時に ARCHYNDIUM で開きます', attrs: 'data-compat="default"', checked: !!isDefault }) +
+        (appInfo.store ? '' : settingRow({ icon: '◎', label: '既定のブラウザにする', sub: isDefault ? '現在、既定のブラウザです' : '他のアプリでリンクを開いた時に ARCHYNDIUM で開きます', attrs: 'data-compat="default"', checked: !!isDefault })) +
         settingRow({ icon: '⇣', label: 'ブックマークを取り込む', sub: 'Chrome・Edge・Brave・Opera・Vivaldi から直接 / HTML ファイルから', attrs: 'data-compat="import"' }) +
         settingRow({ icon: '⇡', label: 'ブックマークを書き出す', sub: '他のブラウザで読み込める HTML 形式', attrs: 'data-compat="export"' });
 }

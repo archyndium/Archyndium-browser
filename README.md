@@ -49,9 +49,9 @@
 
 ## ダウンロード
 
-> **Code signing:** Windows installers of this project are going to be signed through the
-> [SignPath Foundation](https://signpath.org/) free code signing program for open source projects
-> (application in progress). See our [code signing policy](docs/CODE_SIGNING_POLICY.md).
+> **Code signing:** Windows installers are currently **not code-signed**.
+> We plan to reapply to the [SignPath Foundation](https://signpath.org/) free code signing program
+> as the project grows. See our [code signing policy](docs/CODE_SIGNING_POLICY.md).
 
 [Releases](https://github.com/archyndium/archyndium-browser/releases/latest) から `ARCHYNDIUM-Browser-Setup-x.x.x.exe` をダウンロードして実行してください。
 インストール後は、新しい版が出ると自動でアップデートされます。
@@ -60,7 +60,7 @@
 
 ### 「Windows によって PC が保護されました」と表示された場合
 
-現在のインストーラーには**コード署名がありません**（[SignPath Foundation](https://signpath.org/) の無料署名に申請予定です）。
+現在のインストーラーには**コード署名がありません**（[SignPath Foundation](https://signpath.org/) の無料署名に、プロジェクトが育ってから再申請する予定です）。
 そのため、ダウンロードや実行の時に次の警告が出ることがあります。どれも「発行元を確認できない新しいファイル」に出る警告で、
 ファイルが壊れている・危険だと判定されたわけではありません。
 
