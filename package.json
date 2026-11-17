@@ -83,8 +83,8 @@
     },
     "appx": {
       "applicationId": "ArchyndiumBrowser",
-      "identityName": "REPLACE_WITH_PARTNER_CENTER_IDENTITY_NAME",
-      "publisher": "CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER_ID",
+      "identityName": "archyndium.ARCHYNDIUMBrowser",
+      "publisher": "CN=52383FE5-0457-4865-87CB-2167FCCE3F33",
       "publisherDisplayName": "archyndium",
       "displayName": "ARCHYNDIUM Browser",
       "languages": [
