@@ -57,7 +57,7 @@ document.addEventListener('error', (e) => {
 }, true);
 
 // ▼ 変更：ウィンドウを掴んで動かす（上部のバー・サイドパネルの見出し）。ダブルクリックで最大化
-setupWindowDrag({ handles: '.header-drag-area, .command-header, .command-header-area', maximizeOnDoubleClick: true });
+setupWindowDrag({ handles: '.header-drag-area, .command-header, .command-header-area, .ts-drag, .tabstrip', maximizeOnDoubleClick: true });
 
 // ▼ 追加：タブの URL が変わった時に呼ばれる処理の登録先（拡張機能のストア検知・DRM の案内など）
 const tabUrlChangeHooks = [];

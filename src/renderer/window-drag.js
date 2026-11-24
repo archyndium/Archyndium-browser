@@ -8,7 +8,7 @@
 
 function setupWindowDrag({ handles, maximizeOnDoubleClick = false }) {
     // 掴める場所の中にあっても、ボタンや入力欄などは普通に操作できるようにする
-    const INTERACTIVE = 'button, input, textarea, select, a, [contenteditable="true"], .no-drag, .win-btn, .icon-btn, .glass-pill, .tab-card, .chip';
+    const INTERACTIVE = 'button, input, textarea, select, a, [contenteditable="true"], .no-drag, .win-btn, .icon-btn, .glass-pill, .tab-card, .chip, .ts-tab, .ts-group, .ts-new';
     const THRESHOLD = 3; // これだけ動かしたら「ドラッグ」とみなす（クリック・ダブルクリックと区別する）
     let pending = null;  // { screenX, screenY, clientX, clientY }
     let dragging = false;

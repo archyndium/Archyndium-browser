@@ -1055,3 +1055,135 @@ body.window-maximized .app-wrapper { border-radius: 0; border: none; }
 .about-app b { font-size: 14px; color: var(--text-primary); }
 .about-app span { font-size: 11px; color: var(--theme-light); font-variant-numeric: tabular-nums; }
 .about-meta { display: flex; flex-direction: column; gap: 1px; font-size: 10.5px; color: var(--text-muted); }
+
+/* ==========================================================================
+   ▼ 追加：上タブのレイアウト（body.layout-top）・演出（renderer/tabstrip.js, renderer/fx/）
+   ========================================================================== */
+.tabstrip, #btn-panel, .np-chip, .lyric-line, .fx-canvas { display: none; }
+.fx-canvas { position: absolute; left: 0; top: 0; width: 100%; pointer-events: none; z-index: 40; }
+
+body.layout-top .nexus, body.layout-top .command-center { display: none; }
+body.layout-top.panel-open .nexus { display: flex; }
+body.layout-top.panel-open .command-center { display: block; }
+body.layout-top .canvas { align-items: stretch; }
+
+body.layout-top .tabstrip {
+  display: flex; position: relative; width: 100%; height: 46px; flex-shrink: 0; align-items: flex-end; padding-left: 8px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--theme-base) var(--strip-tint, 14%), var(--bg-nexus)), var(--bg-nexus) 75%);
+}
+.ts-tabs { display: flex; align-items: flex-end; gap: 2px; height: 100%; min-width: 0; flex: 0 1 auto; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding-top: 11px; }
+.ts-tabs::-webkit-scrollbar { display: none; }
+.ts-tab {
+  position: relative; flex: 0 1 auto; width: 210px; min-width: 64px; height: 35px; border-radius: 11px 11px 0 0; display: flex; align-items: center; gap: 8px;
+  padding: 0 30px 0 12px; color: var(--text-muted); font-size: 12.5px; cursor: default; user-select: none;
+  transition: background 0.15s, color 0.15s;
+}
+.ts-tab .favicon { margin-right: 0; }
+.ts-tab:hover { background: color-mix(in srgb, var(--bg-canvas) 55%, transparent); color: var(--text-primary); }
+.ts-tab.active { background: var(--bg-canvas); color: var(--text-primary); }
+/* 角を内側に丸めて、タブがツールバーとつながって見えるようにする */
+.ts-tab.active::before, .ts-tab.active::after { content: ''; position: absolute; bottom: 0; width: 10px; height: 10px; pointer-events: none; }
+.ts-tab.active::before { left: -10px; background: radial-gradient(circle at 0 0, transparent 10px, var(--bg-canvas) 10.5px); }
+.ts-tab.active::after { right: -10px; background: radial-gradient(circle at 100% 0, transparent 10px, var(--bg-canvas) 10.5px); }
+.ts-tab[data-group] { box-shadow: inset 0 -2px 0 var(--gc); }
+.ts-tab.pinned { flex: 0 0 auto; width: 42px; min-width: 42px; padding: 0; justify-content: center; }
+.ts-tab.pinned .ts-title, .ts-tab.pinned .ts-x { display: none; }
+.ts-tab.private { color: #C7B5FF; }
+.ts-tab.private.active { background: color-mix(in srgb, #8C5AFF 14%, var(--bg-canvas)); }
+.ts-tab.sleeping .ts-title, .ts-tab.sleeping .favicon { opacity: 0.55; }
+.ts-tab.ts-dragging { z-index: 3; transition: none; background: var(--bg-canvas); color: var(--text-primary); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); }
+.ts-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ts-audio { display: flex; color: var(--text-muted); cursor: pointer; }
+.ts-audio svg { width: 13px; height: 13px; }
+.ts-audio.muted { opacity: 0.6; }
+.ts-x { position: absolute; right: 7px; width: 20px; height: 20px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer; opacity: 0; }
+.ts-tab:hover .ts-x, .ts-tab.active .ts-x { opacity: 1; }
+.ts-x:hover { background: rgba(255, 255, 255, 0.1); color: var(--text-primary); }
+.ts-group {
+  align-self: center; flex-shrink: 0; height: 21px; max-width: 130px; margin: 0 2px 6px 6px; padding: 0 8px; border-radius: 7px;
+  background: var(--gc); color: #15151a; font-size: 11px; font-weight: 700; display: flex; align-items: center; gap: 5px; cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ts-group i { font-style: normal; background: rgba(0, 0, 0, 0.18); border-radius: 5px; padding: 0 4px; font-size: 10px; }
+.ts-group.collapsed { opacity: 0.85; }
+.ts-new { align-self: center; flex-shrink: 0; width: 28px; height: 28px; margin: 0 4px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); cursor: pointer; }
+.ts-new:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
+.ts-drag { flex: 1; align-self: stretch; min-width: 36px; }
+body.layout-top .tabstrip .window-controls { height: 100%; align-items: center; padding-left: 4px; margin-left: 0; }
+body.layout-top .tabstrip .win-btn { height: 30px; }
+
+/* ツールバー：左寄せで横いっぱいのアドレスバー */
+body.layout-top .canvas-header { height: 46px; padding: 0 8px; background: var(--bg-canvas); }
+body.layout-top .header-drag-area { display: none; }
+body.layout-top .browser-toolbar { position: static; transform: none; width: 100%; max-width: none; justify-content: flex-start; gap: 6px; }
+body.layout-top .glass-pill { height: 34px; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none; }
+body.layout-top .nav-pill { background: transparent; border-color: transparent; }
+body.layout-top .omnibar-pill { max-width: none; border-radius: 17px; background: color-mix(in srgb, var(--bg-nexus) 70%, var(--bg-canvas)); }
+body.layout-top .url-input { text-align: left; padding: 0 8px; }
+body.layout-top #btn-panel { display: flex; }
+body.layout-top.panel-open #btn-panel { color: var(--theme-light); background: rgba(255, 255, 255, 0.08); }
+body.layout-top .webview-container { padding: 0 8px 8px 8px; }
+body.layout-top .webview-container > webview { border-radius: 10px !important; }
+
+/* 再生中の曲 */
+body.layout-top .np-chip { display: flex; align-items: center; gap: 6px; padding: 0 4px 0 5px; flex-shrink: 1; min-width: 0; max-width: 300px; cursor: pointer; }
+body.layout-top .np-chip.idle { display: none; }
+.np-art { width: 24px; height: 24px; border-radius: 7px; flex-shrink: 0; background: var(--theme-gradient); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); position: relative; }
+.np-chip.playing .np-art::after { content: ''; position: absolute; inset: 7px; border-radius: 50%; background: var(--theme-light); opacity: 0.9; animation: np-pulse 1.6s ease-in-out infinite; }
+@keyframes np-pulse { 50% { transform: scale(0.55); opacity: 0.5; } }
+.np-title { overflow: hidden; white-space: nowrap; width: 140px; font-size: 12px; color: var(--text-primary); -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent); }
+.np-title span { display: inline-block; }
+.np-chip.playing .np-title span { animation: np-marquee 14s linear infinite; }
+@keyframes np-marquee { 0%, 18% { transform: translateX(0); } 82%, 100% { transform: translateX(-40%); } }
+.np-btn { width: 26px; height: 26px; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: var(--text-muted); flex-shrink: 0; }
+.np-btn:hover { background: rgba(255, 255, 255, 0.08); color: var(--text-primary); }
+.np-btn svg { width: 14px; height: 14px; }
+.np-play svg { fill: currentColor; stroke: none; }
+.np-play { color: var(--text-primary); }
+
+/* 歌詞の 1 行 */
+body.layout-top .lyric-line { display: flex; align-items: center; gap: 10px; width: 100%; height: 0; overflow: hidden; padding: 0 20px; flex-shrink: 0; font-size: 12.5px; color: var(--text-muted); cursor: pointer; transition: height 0.3s ease; }
+body.layout-top .lyric-line.show { height: 26px; margin-top: -4px; margin-bottom: 4px; }
+.ll-note { color: var(--theme-light); }
+.ll-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: opacity 0.18s, transform 0.18s; }
+.ll-text.swap { opacity: 0; transform: translateY(5px); }
+.lyric-line:hover .ll-text { color: var(--text-primary); }
+
+/* 全画面の時は隠す */
+body.app-fullscreen .tabstrip, body.app-fullscreen .lyric-line, body.app-fullscreen .fx-canvas { display: none !important; }
+
+/* ---------- 演出：タブの開閉の動き（FX 'tab-motion'） ---------- */
+body.fx-tab-motion .ts-tab.ts-enter { animation: ts-enter 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes ts-enter { from { opacity: 0; transform: translateY(8px) scale(0.96); } }
+body.fx-tab-motion .ts-tab.ts-leave { transition: opacity 0.16s, transform 0.16s; opacity: 0; transform: translateY(6px) scale(0.96); pointer-events: none; }
+body.fx-tab-motion .ts-tab { transition: background 0.15s, color 0.15s, flex-basis 0.2s; }
+
+/* ---------- 設定画面：演出 ---------- */
+.fx-group-title { margin: 12px 4px 6px; font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: 0.04em; }
+.fx-card { border: 1px solid var(--border-subtle); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+.fx-card.on { border-color: rgba(170, 183, 183, 0.18); background: rgba(255, 255, 255, 0.025); }
+.fx-card.muted { opacity: 0.55; }
+.fx-card-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; cursor: pointer; }
+.fx-card-head:hover { background: rgba(255, 255, 255, 0.03); }
+.fx-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fx-card-text b { font-size: 13px; color: var(--text-primary); font-weight: 600; }
+.fx-card-text span, .fx-card-text em { font-size: 11px; color: var(--text-muted); line-height: 1.45; font-style: normal; }
+.fx-card-text em { color: #E5A93B; }
+.fx-params { display: flex; flex-direction: column; gap: 10px; padding: 4px 12px 12px; }
+.fx-param { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; align-items: center; font-size: 12px; color: var(--text-primary); }
+.fx-param-inline { padding: 6px 12px 10px; }
+.fx-param output { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.fx-param input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--theme-light); }
+.fx-param-label small { display: block; font-size: 10.5px; color: var(--text-muted); margin-top: 1px; }
+.fx-param-toggle { cursor: pointer; }
+.fx-seg { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px; }
+.fx-seg-btn { padding: 4px 9px; border-radius: 7px; border: 1px solid var(--border-subtle); font-size: 11.5px; color: var(--text-muted); cursor: pointer; }
+.fx-seg-btn:hover { color: var(--text-primary); border-color: rgba(255, 255, 255, 0.15); }
+.fx-seg-btn.on { background: var(--theme-gradient); color: #fff; border-color: transparent; }
+.fx-action, .fx-reset { align-self: flex-start; font-size: 11.5px; padding: 5px 10px; border-radius: 7px; border: 1px solid var(--border-subtle); color: var(--text-primary); cursor: pointer; }
+.fx-action:hover, .fx-reset:hover { background: rgba(255, 255, 255, 0.06); }
+.fx-reset { border: none; color: var(--text-muted); padding-left: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .np-chip.playing .np-art::after, .np-chip.playing .np-title span { animation: none; }
+}

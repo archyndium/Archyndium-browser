@@ -104,6 +104,10 @@
         <div class="panel-list-container">
           <div class="list-section-title">Theme</div>
           <div class="theme-grid" id="theme-list"></div>
+          <div class="list-section-title">Layout - タブの位置</div>
+          <div id="layout-options"></div>
+          <div class="list-section-title">演出（アニメーション）</div>
+          <div id="fx-options"></div>
           <div class="list-section-title">Search - 検索エンジン</div>
           <div id="search-options"></div>
           <div class="list-section-title">Startup</div>
@@ -211,10 +215,19 @@
 
   <!-- Layer 3: The Canvas -->
   <main class="canvas">
+    <!-- ▼ 追加：上のタブバー（設定の「タブを上に並べる」の時だけ表示。中身は renderer/tabstrip.js） -->
+    <div class="tabstrip" id="tabstrip">
+      <div class="ts-tabs" id="ts-tabs"></div>
+      <div class="ts-new" id="ts-new" title="新しいタブ (Ctrl+T)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></div>
+      <div class="ts-drag"></div>
+    </div>
+    <!-- ▼ 追加：演出を描くキャンバス（タブバーとツールバーの上だけ。ページには重ならない） -->
+    <canvas class="fx-canvas" id="fx-canvas" aria-hidden="true"></canvas>
     <header class="canvas-header">
       <div class="header-drag-area"></div>
       <div class="browser-toolbar" id="browser-toolbar">
         <div class="glass-pill nav-pill">
+          <div class="icon-btn" id="btn-panel" title="パネル（Work / Focus・ブックマーク・履歴・設定など）"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="3"></rect><line x1="9" y1="4" x2="9" y2="20"></line></svg></div>
           <div class="icon-btn" id="btn-back"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg></div>
           <div class="icon-btn" id="btn-forward"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
           <div class="icon-btn" id="btn-split" title="分割表示 (Ctrl+\)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line></svg></div>
@@ -238,6 +251,14 @@
         <svg class="dl-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><polyline points="7 10 12 15 17 10"></polyline><path d="M5 20h14"></path></svg>
         <span class="dl-dot" id="dl-dot"></span>
       </div>
+      <!-- ▼ 追加：再生中の曲（上タブの時。クリックで再生元のタブへ） -->
+      <div class="glass-pill np-chip idle" id="np-chip">
+        <span class="np-art"></span>
+        <span class="np-title"><span></span></span>
+        <span class="np-btn np-play" title="再生 / 一時停止"></span>
+        <span class="np-btn np-lyrics" title="歌詞"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>
+        <span class="np-btn np-popout" title="ミニプレイヤー"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg></span>
+      </div>
       </div>
       <div class="window-controls">
         <div class="win-btn" id="btn-minimize"><svg width="12" height="12" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><line x1="4" y1="12" x2="20" y2="12"></line></svg></div>
@@ -245,6 +266,8 @@
         <div class="win-btn close" id="btn-close"><svg width="12" height="12" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none"><line x1="6" y1="6" x2="18" y2="18"></line><line x1="6" y1="18" x2="18" y2="6"></line></svg></div>
       </div>
     </header>
+    <!-- ▼ 追加：歌詞の 1 行（上タブの時。クリックで歌詞の全文） -->
+    <div class="lyric-line" id="lyric-line" title="クリックで歌詞の全文"><span class="ll-note">♪</span><span class="ll-text"></span></div>
     
     <!-- ▼ 追加：ページ内検索バー（Ctrl+F） -->
     <div class="find-bar" id="find-bar">
@@ -384,6 +407,9 @@
 <!-- 読み込み順 = 元の単一 <script> 内の記述順。classic script なのでトップレベル変数は全ファイルで共有されます -->
 <script src="renderer/window-drag.js"></script>
 <script src="renderer/core.js"></script>
+<script src="renderer/fx/fx-core.js"></script>
+<script src="renderer/fx/season.js"></script>
+<script src="renderer/fx/tab-motion.js"></script>
 <script src="renderer/search.js"></script>
 <script src="renderer/dialog.js"></script>
 <script src="renderer/tabs.js"></script>
@@ -413,6 +439,8 @@
 <script src="renderer/palette.js"></script>
 <script src="renderer/session.js"></script>
 <script src="renderer/settings.js"></script>
+<script src="renderer/fx/fx-settings.js"></script>
+<script src="renderer/tabstrip.js"></script>
 <script src="renderer/shortcuts.js"></script>
 <script src="renderer/app.js"></script>
 </body>
