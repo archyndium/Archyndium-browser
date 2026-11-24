@@ -60,6 +60,33 @@ function addTabToWorkspace(tabCard, wsId = null) {
     saveWorkspaces(); renderWorkspaces();
 }
 
+// ▼ 追加：タブのグループ（またはブックマークのフォルダ）を、まとめて Work / Focus のフォルダにする。
+//   wsId を指定すると、そのアプリ・フォルダに追加する。グループ名がフォルダ名になる
+function addGroupToWorkspace(groupEl, wsId = null) {
+    const cards = [...groupEl.querySelectorAll('.tab-card[data-url]')].filter(c => /^https?:/i.test(c.getAttribute('data-url') || ''));
+    if (!cards.length) { showToast('このグループには登録できるページがありません'); return; }
+    const groupName = (groupEl.querySelector('.group-title')?.textContent || '').trim() || 'Group';
+    let ws = wsId && workspaces.find(w => w.id === wsId);
+    if (!ws) {
+        ws = { id: 'ws-' + Date.now(), name: groupName.substring(0, 20), color: GROUP_COLORS[Math.floor(Math.random() * GROUP_COLORS.length)],
+            icon: groupName.charAt(0).toUpperCase(), urls: [], icons: {}, titles: {} };
+        workspaces.push(ws);
+    }
+    let added = 0;
+    cards.forEach(card => {
+        const url = card.getAttribute('data-url');
+        if (ws.urls.includes(url)) return;
+        ws.urls.push(url);
+        ws.titles[url] = card.querySelector('.tab-title')?.textContent || siteHostOf(url) || url;
+        const img = card.querySelector('.favicon img');
+        const icon = img && img.getAttribute('src') && img.style.display !== 'none' ? img.getAttribute('src') : card.getAttribute('data-favicon') || '';
+        if (icon) ws.icons[url] = icon;
+        added++;
+    });
+    saveWorkspaces(); renderWorkspaces();
+    showToast(added ? `「${escapeHtml(ws.name)}」に ${added} 個のサイトを登録しました` : 'すべて登録済みです');
+}
+
 function wsTitleOf(ws, url) {
     return ws.titles?.[url] || siteHostOf(url) || url;
 }

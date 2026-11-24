@@ -96,91 +96,49 @@ function setupDraggable(element, type) {
 }
 
 function initDropZone(zone) {
+  // ▼ 修正：以前は dragover・drop などの処理が二重に登録されていて、タブを Work / Focus の空いている所に
+  //   落とすと同じアプリが 2 つできていた。1 つにまとめ、受け取れる組み合わせを canAccept で判定する
+  const canAccept = (el) => {
+    if (el.id === 'btn-trash') return true;
+    const isWs = el.id === 'workspace-grid' || el.classList.contains('ws-app');
+    // ▼ 追加：グループ（ブックマークのフォルダも）を Work / Focus へ。タブのグループはタブ一覧の中でも並べ替えられる
+    if (dragType === 'group') return isWs || (el.id === 'tabs-container' && !draggedElement.classList.contains('bm-folder'));
+    if (dragType === 'tab') return isWs || el.id === 'tabs-container' || (el.classList.contains('group-list') && !el.classList.contains('bm-list'));
+    if (dragType === 'bookmark') return el.classList.contains('bm-list') || el.id === 'bookmarks-list';
+    return false;
+  };
   zone.addEventListener('dragover', function(e) {
-    e.preventDefault(); e.stopPropagation(); 
-    if (this.id === 'btn-trash') { this.classList.add('drag-hover'); return; }
-    if (dragType === 'group' && this.id === 'tabs-container') this.classList.add('drag-hover');
-    else if (dragType === 'tab' && (this.classList.contains('group-list') && !this.classList.contains('bm-list') || this.id === 'tabs-container')) this.classList.add('drag-hover');
-    else if (dragType === 'bookmark' && (this.classList.contains('bm-list') || this.id === 'bookmarks-list')) this.classList.add('drag-hover');
-    // ▼ 追加：アプリアイコンやワークスペースエリアへのD&Dを許可
-    else if (dragType === 'tab' && (this.id === 'workspace-grid' || this.classList.contains('ws-app'))) this.classList.add('drag-hover');
-    else if (dragType === 'workspace' && this.id === 'btn-trash') this.classList.add('drag-hover');
+    e.preventDefault(); e.stopPropagation();
+    if (draggedElement && canAccept(this)) this.classList.add('drag-hover');
   });
   zone.addEventListener('dragleave', function(e) { e.stopPropagation(); this.classList.remove('drag-hover'); });
   zone.addEventListener('drop', function(e) {
     e.preventDefault(); e.stopPropagation(); this.classList.remove('drag-hover');
-    if (!draggedElement) return;
-
-    // ▼ 追加：ワークスペースへのドロップ処理（アイコン・タイトルも一緒に覚える。workspaces.js）
-    if (dragType === 'tab' && this.classList.contains('ws-app')) {
-        addTabToWorkspace(draggedElement, this.getAttribute('data-ws-id'));
-        return;
-    }
-    if (dragType === 'tab' && this.id === 'workspace-grid') {
-        addTabToWorkspace(draggedElement);
-        return;
-    }
-
-    if (this.id === 'btn-trash') { this.classList.add('drag-hover'); return; }
-    if (dragType === 'group' && this.id === 'tabs-container') this.classList.add('drag-hover');
-    else if (dragType === 'tab' && (this.classList.contains('group-list') && !this.classList.contains('bm-list') || this.id === 'tabs-container')) this.classList.add('drag-hover');
-    else if (dragType === 'bookmark' && (this.classList.contains('bm-list') || this.id === 'bookmarks-list')) this.classList.add('drag-hover');
-    // ▼ 追加：アプリアイコンやワークスペースエリアへのD&Dを許可
-    else if (dragType === 'tab' && (this.id === 'workspace-grid' || this.classList.contains('ws-app'))) this.classList.add('drag-hover');
-    else if (dragType === 'workspace' && this.id === 'btn-trash') this.classList.add('drag-hover');
-  });
-  zone.addEventListener('dragleave', function(e) { e.stopPropagation(); this.classList.remove('drag-hover'); });
-  zone.addEventListener('drop', function(e) {
-    e.preventDefault(); e.stopPropagation(); this.classList.remove('drag-hover');
-    if (!draggedElement) return;
-
-    // ▼ 追加：ワークスペースへのドロップ処理
-    if (dragType === 'tab' && this.classList.contains('ws-app')) {
-        const url = draggedElement.getAttribute('data-url');
-        const wsId = this.getAttribute('data-ws-id');
-        const ws = workspaces.find(w => w.id === wsId);
-        if (ws && !ws.urls.includes(url)) {
-            ws.urls.push(url);
-            saveWorkspaces(); renderWorkspaces();
-        }
-        return;
-    }
-    if (dragType === 'tab' && this.id === 'workspace-grid') {
-        const url = draggedElement.getAttribute('data-url');
-        const title = draggedElement.querySelector('.tab-title').textContent || 'New App';
-        const randomColor = GROUP_COLORS[Math.floor(Math.random() * GROUP_COLORS.length)];
-        const newWs = {
-            id: 'ws-' + Date.now(),
-            name: title.substring(0, 8), // 長い名前はカット
-            color: randomColor,
-            icon: title.charAt(0).toUpperCase(),
-            urls: [url]
-        };
-        workspaces.push(newWs);
-        saveWorkspaces(); renderWorkspaces();
-        return;
-    }
+    if (!draggedElement || !canAccept(this)) return;
 
     if (this.id === 'btn-trash') {
-      // ▼ 変更：捨てる前に確認する（設定で OFF にできる）。await の間に drag 状態が消えるので先に控える
+      // 捨てる前に確認する（設定で OFF にできる）。await の間に drag 状態が消えるので先に控える
       trashDropped(draggedElement, dragType);
       return;
     }
-    if (dragType === 'group' && this.id === 'tabs-container') {
+    // Work / Focus へのドロップ（アイコン・タイトルも一緒に覚える。workspaces.js）
+    if (this.id === 'workspace-grid' || this.classList.contains('ws-app')) {
+      const wsId = this.getAttribute('data-ws-id');
+      if (dragType === 'group') addGroupToWorkspace(draggedElement, wsId); // グループはまとめてフォルダに
+      else addTabToWorkspace(draggedElement, wsId);
+      return;
+    }
+    if (dragType === 'group') {
       const afterElement = getDragAfterElement(this, e.clientY, ':scope > .tab-card:not(.dragging), :scope > .tab-group:not(.dragging)');
       if (afterElement == null) this.appendChild(draggedElement); else this.insertBefore(draggedElement, afterElement);
     } else if (dragType === 'tab') {
-      if ((this.classList.contains('group-list') && !this.classList.contains('bm-list')) || this.id === 'tabs-container') {
-        const afterElement = getDragAfterElement(this, e.clientY, '.tab-card:not(.dragging)');
-        if (afterElement == null) this.appendChild(draggedElement); else this.insertBefore(draggedElement, afterElement);
-        // 固定タブを一覧へドラッグしたら固定を外す
-        if (draggedElement.classList.contains('pinned')) { draggedElement.classList.remove('pinned'); draggedElement.removeAttribute('title'); document.getElementById('pinned-tabs').classList.toggle('has-tabs', !!document.getElementById('pinned-tabs').children.length); }
-      }
+      const afterElement = getDragAfterElement(this, e.clientY, '.tab-card:not(.dragging)');
+      if (afterElement == null) this.appendChild(draggedElement); else this.insertBefore(draggedElement, afterElement);
+      // 固定タブを一覧へドラッグしたら固定を外す
+      if (draggedElement.classList.contains('pinned')) { draggedElement.classList.remove('pinned'); draggedElement.removeAttribute('title'); document.getElementById('pinned-tabs').classList.toggle('has-tabs', !!document.getElementById('pinned-tabs').children.length); }
     } else if (dragType === 'bookmark') {
-      if (this.classList.contains('bm-list') || this.id === 'bookmarks-list') {
-        const afterElement = getDragAfterElement(this, e.clientY, '.tab-card:not(.dragging)');
-        if (afterElement == null) this.appendChild(draggedElement); else this.insertBefore(draggedElement, afterElement);
-      }
+      const afterElement = getDragAfterElement(this, e.clientY, '.tab-card:not(.dragging)');
+      if (afterElement == null) this.appendChild(draggedElement); else this.insertBefore(draggedElement, afterElement);
     }
   });
 }

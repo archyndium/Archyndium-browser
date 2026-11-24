@@ -12,7 +12,7 @@ Partner Center の入力欄にそのまま貼り付けて使う文章です。�
 | 欄 | 入力する内容 |
 |---|---|
 | アプリ名 | ARCHYNDIUM Browser |
-| カテゴリ | 生産性（Productivity） |
+| カテゴリ | 仕事効率化（Productivity）。セカンダリ カテゴリは「音楽」 |
 | プライバシーポリシーの URL | https://github.com/archyndium/Archyndium-browser/blob/main/PRIVACY.md |
 | Web サイト | https://github.com/archyndium/Archyndium-browser |
 | サポートの連絡先 | https://github.com/archyndium/Archyndium-browser/issues |

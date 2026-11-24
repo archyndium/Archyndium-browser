@@ -47,7 +47,35 @@ document.getElementById('panel-tabs').addEventListener('click', (e) => {
     setTabMuted(tabId, !isTabMuted(tabId));
 });
 
+// ▼ 追加：グループの見出しの右クリック（Work / Focus に登録・名前の変更・まとめて閉じる・グループの解除）
+async function groupHeaderMenu(groupEl) {
+    const tabIds = [...groupEl.querySelectorAll('.tab-card[data-tab-id]')].map(c => c.getAttribute('data-tab-id'));
+    const sites = [...groupEl.querySelectorAll('.tab-card[data-url]')].filter(c => /^https?:/i.test(c.getAttribute('data-url') || '')).length;
+    const choice = await window.electronAPI.popupMenu([
+        { id: 'ws', label: `Work / Focus に登録（${sites} 個のサイト）`, enabled: sites > 0 },
+        { type: 'separator' },
+        { id: 'rename', label: '名前を変更' },
+        { id: 'ungroup', label: 'グループを解除（タブは残す）' },
+        { id: 'close', label: `グループのタブをすべて閉じる（${tabIds.length}）`, enabled: tabIds.length > 0 },
+    ]);
+    if (choice === 'ws') addGroupToWorkspace(groupEl);
+    else if (choice === 'rename') groupEl.querySelector('.edit-group-btn')?.click();
+    else if (choice === 'ungroup') {
+        groupEl.querySelectorAll('.group-list > .tab-card').forEach(c => groupEl.before(c));
+        groupEl.remove();
+        scheduleSaveSession?.();
+    } else if (choice === 'close') {
+        closeTabsBulk(tabIds);
+    }
+}
+
 document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) => {
+    const groupHeader = e.target.closest('#tabs-container .tab-group .group-header');
+    if (groupHeader && window.electronAPI?.popupMenu) {
+        e.preventDefault();
+        groupHeaderMenu(groupHeader.closest('.tab-group'));
+        return;
+    }
     const card = e.target.closest('.tab-card[data-tab-id]');
     if (!card || !window.electronAPI?.popupMenu) return;
     e.preventDefault();
@@ -77,6 +105,7 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
         { id: 'split-v', label: '表示中のタブと上下に並べる', enabled: tabId !== activeTabId },
         { id: 'unsplit', label: '分割を解除', enabled: isInSplit(tabId) },
         { id: 'new-window', label: '新しいウィンドウに移動' },
+        { id: 'workspace', label: 'Work / Focus に登録', enabled: /^https?:/i.test(url) },
         { type: 'separator' },
         { id: 'copy', label: 'URL をコピー' },
         { id: 'private', label: 'シークレットタブで開き直す', enabled: !isPrivateTab(tabId) && /^https?:/.test(url) },
@@ -104,6 +133,7 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
         case 'split-v': startSplit(activeTabId, tabId, 'v'); break;
         case 'unsplit': unsplit(); break;
         case 'new-window': moveTabToNewWindow(tabId); break;
+        case 'workspace': addTabToWorkspace(card); showToast('Work / Focus に登録しました'); break;
         case 'player': (mediaLocked && mediaTargetTabId === tabId) ? toggleMediaLock() : setMediaTarget(tabId, { lock: true }); break;
         case 'copy': navigator.clipboard.writeText(url).catch(() => {}); break;
         case 'private': openNewTab(url, { isPrivate: true }); break;
