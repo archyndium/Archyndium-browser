@@ -1,7 +1,7 @@
 // ==========================================
 // ★ アドブロック（@cliqz/adblocker-electron）3モード制御
 // ==========================================
-// mode 2 = AEGIS（ネットワーク + DOM ブロック）/ 1 = STREAM（DOM 側のみ）/ 0 = BYPASS
+// mode 2 = 標準（ネットワーク + DOM ブロック）/ 1 = 簡易（DOM 側のみ）/ 0 = オフ
 // 通常セッションとシークレット用セッションの両方に適用する。
 // ▼ 変更：タブごとにモードを上書きできる。ブロッカー自体は常に有効にしておき、
 //   通信・見た目のフィルターを「そのタブのモード」と「サイト例外」でリクエストごとに判定する。
@@ -15,7 +15,7 @@ let currentAdblockMode = 2;
 const sessions = new Set();
 let onModeApplied = () => {};
 
-// ▼ 追加：サイトごとの例外（このサイトだけ BYPASS）。ホスト名単位で保存する
+// ▼ 追加：サイトごとの例外（このサイトだけオフ）。ホスト名単位で保存する
 const siteStore = createStore('shield-sites', { bypass: [] });
 
 function hostOf(url) {
@@ -89,7 +89,7 @@ function init({ onApplied } = {}) {
       stats.total++;
       if (request.tabId) stats.perContents.set(request.tabId, (stats.perContents.get(request.tabId) || 0) + 1);
     });
-    // 見た目の広告非表示（コスメティックフィルター）は AEGIS のタブだけ。例外サイトでも止める
+    // 見た目の広告非表示（コスメティックフィルター）は 標準モードのタブだけ。例外サイトでも止める
     const cosmeticOff = (event) => effectiveMode(event.sender.id) !== 2 || isBypassedUrl(event.sender.getURL());
     const origFirst = blocker.onGetCosmeticFiltersFirst;
     const origUpdated = blocker.onGetCosmeticFiltersUpdated;

@@ -49,6 +49,8 @@ const extensions = require('./main/extensions');
 const windowDrag = require('./main/window-drag');
 const compat = require('./main/compat');
 const updater = require('./main/updater');
+const appSettings = require('./main/app-settings');
+const linkPreview = require('./main/link-preview');
 
 // Windows：通知やタスクバーでアプリを正しく識別させる（package.json の build.appId と同じ値）
 if (process.platform === 'win32') app.setAppUserModelId('com.archyndium.browser');
@@ -83,11 +85,17 @@ const { ipcMain } = require('electron');
 //   url=…     … 新しいウィンドウで最初に開くページ（タブを別ウィンドウへ移動した時など）
 //   private=1 … 最初のタブをシークレットにする
 function createWindow(query = {}, bounds = {}) {
+  // ▼ 変更：軽量化のため、初期値は不透明なウィンドウ（設定 → Performance で以前の透明なウィンドウに戻せる）
+  const opaque = appSettings.get('opaqueWindow') !== false;
+  if (opaque) query = { ...query, opaque: '1' };
   const win = new BrowserWindow({
     width: 1280, height: 800, ...bounds,
-    frame: false, transparent: true, backgroundColor: '#00000000',
-    // ▼ 追加：Windows で枠なしウィンドウに付く標準の枠・影（四角い薄い枠の原因）を出さない
-    thickFrame: false, hasShadow: false,
+    frame: false,
+    ...(opaque
+      // 不透明：Windows の標準の枠（角の丸み・影・スナップ）を使う。描画が軽い
+      ? { transparent: false, backgroundColor: '#0B0B0D', thickFrame: true, hasShadow: true }
+      // 透明：アプリで角を丸める（以前の形）。Windows で枠なしウィンドウに付く四角い薄い枠を出さない
+      : { transparent: true, backgroundColor: '#00000000', thickFrame: false, hasShadow: false }),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, nodeIntegration: false,
@@ -183,6 +191,8 @@ extensions.init();
 windowDrag.init();
 compat.init();
 updater.init();
+appSettings.init();
+linkPreview.init();
 ipcMain.handle('take-startup-urls', () => { const urls = startupUrls; startupUrls = []; return urls; });
 security.removeIpcGuard();
 

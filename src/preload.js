@@ -67,6 +67,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   capturePage: (webContentsId, mode) => ipcRenderer.invoke('capture-page', webContentsId, mode),
   showFile: (filePath) => ipcRenderer.send('show-file', filePath),
   onSearchText: (callback) => ipcRenderer.on('search-text', (e, data) => callback(data)),
+  // ▼ 追加：ページの右クリックメニューからの操作（コピー制限の解除・文字の取り出し）
+  onPageAction: (callback) => ipcRenderer.on('page-action', (e, data) => callback(data)),
   onSpeakText: (callback) => ipcRenderer.on('speak-text', (e, data) => callback(data)),
   onAddToNote: (callback) => ipcRenderer.on('add-to-note', (e, data) => callback(data)),
   onPlayerRemote: (callback) => ipcRenderer.on('player-remote', (e, data) => callback(data)),
@@ -79,6 +81,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   exportBookmarkHtml: (folders) => ipcRenderer.invoke('bookmark-export-html', folders),
   setDefaultBrowser: () => ipcRenderer.invoke('set-default-browser'),
   appInfo: () => ipcRenderer.invoke('app-info'),
+  // ▼ 追加：アプリ全体の設定（不透明なウィンドウなど）
+  getAppSettings: () => ipcRenderer.invoke('app-settings-get'),
+  setAppSetting: (key, value) => ipcRenderer.invoke('app-settings-set', key, value),
+  // ▼ 追加：リンクのプレビュー（ページのタイトル・画像を main で取得）
+  linkPreview: (url) => ipcRenderer.invoke('link-preview', url),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),
   printToPdf: (webContentsId, title) => ipcRenderer.invoke('print-to-pdf', webContentsId, title),
   drmStatus: () => ipcRenderer.invoke('drm-status'),

@@ -1,3 +1,5 @@
+// ▼ 追加：不透明なウィンドウ（軽量化。角の丸みと影は Windows 標準のものを使う）の時は、アプリ側で角を丸めない
+if (new URLSearchParams(location.search).get('opaque') === '1') document.body.classList.add('opaque-window');
 // ▼ 追加：最大化・全画面中は角を丸めない
 window.electronAPI?.onWindowMaximized?.((on) => document.body.classList.toggle('window-maximized', !!on));
 

@@ -24,6 +24,7 @@
 //       'lyric-line'      { index, text }       カラオケ歌詞の行が変わった
 //       'tempo'           { factor }            歌詞の行の間隔から推定した曲の速さ（1 = ふつう）
 //       'tab-drag-start'  { id }                上のタブバーでタブをつかんだ
+//       'tab-drag-move'   { id, vx }            つかんだタブを動かしている（vx = 横の速さ px/秒）
 //       'tab-close'       { id }                上のタブバーでタブを閉じる直前
 //       'tabs-changed'    {}                    タブの並び・幅が変わった
 //       'window-shake'    { strength, dir }     ウィンドウを左右に揺らした

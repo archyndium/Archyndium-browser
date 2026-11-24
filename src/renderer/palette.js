@@ -20,9 +20,9 @@ const K = (s) => isMacPlatform ? s.replace(/Ctrl/g, '⌘') : s;
 
 // テーマ名の日本語の読み（「さくら」「みどり」などでも探せるように）
 const THEME_READINGS = {
-    default: 'デフォルト 黒 くろ', navy: 'ネイビー 紺 こん', green: 'グリーン 緑 みどり 森', purple: 'パープル 紫 むらさき',
-    oled: 'オーレッド 真っ黒 まっくろ', graphite: 'グラファイト 灰色 グレー', nord: 'ノルド 北欧', indigo: 'インディゴ 藍 あい 夜',
-    ocean: 'オーシャン 海 うみ 青緑', crimson: 'クリムゾン 赤 あか', sakura: 'さくら 桜 ピンク', amber: 'アンバー 夕焼け オレンジ',
+    default: 'デフォルト 黒 くろ ダーク', navy: 'ネイビー 紺 こん', green: 'グリーン 緑 みどり 森', purple: 'パープル 紫 むらさき',
+    graphite: 'グラファイト 灰色 グレー', nord: 'ノルド 北欧', crimson: 'クリムゾン 赤 あか', amber: 'アンバー 夕焼け オレンジ',
+    dusk: 'ダスク 夕暮れ 夜 青紫', paper: 'ペーパー 紙 白 明るい ライト', mist: 'ミスト 霧 白 明るい ライト 青', sage: 'セージ 緑 白 明るい ライト',
 };
 
 // ---------- コマンド一覧 ----------
@@ -96,6 +96,9 @@ function buildCommands() {
         { id: 'karaoke', group: '音楽', title: () => karaokeEnabled ? 'カラオケ表示をオフ' : 'カラオケ表示をオン', keywords: 'karaoke synced lyrics', run: () => setKaraokeEnabled(!karaokeEnabled) },
         { id: 'mini-player', group: '音楽', title: 'ミニプレイヤーを開く', keywords: 'mini player popout', run: () => window.electronAPI.openMiniPlayer() },
         { id: 'lock-player', group: '音楽', title: () => mediaLocked ? 'プレイヤーの固定を解除' : 'プレイヤーをこのタブに固定', keywords: 'lock player source', run: toggleMediaLock },
+        // ▼ 追加：コピーできないページ
+        { id: 'unlock-copy', group: 'ページ', title: 'このサイトのコピー制限を解除', keywords: 'copy unlock コピー 禁止 解除 右クリック 選択', when: hasTab, run: () => unlockCopy(activeTabId) },
+        { id: 'extract-text', group: 'ページ', title: 'ページの文字を取り出す', keywords: 'text extract 文字 テキスト 抜き出す コピー', when: hasTab, run: () => extractPageText(activeTabId) },
         // Shield
         ...SHIELD_MODES.map(m => ({ id: 'shield-' + m.mode, group: 'Shield', title: `Shield を ${m.name}（${m.tag}）にする`, keywords: `shield adblock ${m.name}`, run: async () => { globalShieldMode = await window.electronAPI.setAdblockMode(m.mode); updateShieldIcon(); reloadActiveTab(); showToast(`Shield：${m.name}`); } })),
         { id: 'shield-site', group: 'Shield', title: () => currentSiteBypassed ? 'このサイトの Shield を有効に戻す' : 'このサイトだけ Shield を無効にする', keywords: 'shield exception bypass site', when: hasTab, run: () => document.getElementById('sp-site-switch').click() },

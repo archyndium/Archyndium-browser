@@ -31,11 +31,29 @@ function tabFaviconOf(tabId) {
 
 // 再生中の曲情報（タイトル・アーティスト）をプレイヤー表示に反映する
 function refreshNowPlaying() {
-    if (audioPlaylist.length > 0 || !mediaTargetTabId || isRemotePlayer()) return;
+    if (audioPlaylist.length > 0 || isRemotePlayer()) return;
+    if (!mediaTargetTabId) { resetNowPlaying(); return; }
     const meta = mediaTabs[mediaTargetTabId]?.meta || {};
     if (meta.pendingTitle) return; // 新しい曲名を取得中（前の曲名のまま歌詞を探さない）
     nowPlayingTitle.textContent = meta.title || tabTitleOf(mediaTargetTabId).replace(/^\(\d+\)\s*/, '').replace(/ - YouTube( Music)?$/, '');
     document.getElementById('track-artist').textContent = meta.artist || tabHostOf(mediaTargetTabId) || 'Web Media';
+}
+
+// ▼ 追加：操作するタブが無くなった時（音楽を流していたタブを閉じた等）は、曲名・歌詞を消して
+//   「再生していません」に戻す。ミニプレイヤーにも syncTick 経由で同じ内容が届く
+function resetNowPlaying() {
+    if (nowPlayingTitle.textContent === '再生していません' && !currentLyricsText && !karaokeLines) return;
+    nowPlayingTitle.textContent = '再生していません';
+    document.getElementById('track-artist').textContent = 'タブの音声を自動で検出';
+    currentTrackTitleStr = '';        // 同じ曲をもう一度流した時に、歌詞を取り直すため
+    currentMediaTime = 0; currentMediaDuration = 0;
+    isPlaying = false; updatePlayBtn();
+    clearLyrics();
+    renderLyricsBody();
+    const t = document.getElementById('lyrics-title'), a = document.getElementById('lyrics-artist');
+    if (t) t.textContent = '再生していません';
+    if (a) a.textContent = '';
+    if (typeof updateMarquee === 'function') updateMarquee('track-name');
 }
 
 function setMediaTarget(tabId, { lock } = {}) {

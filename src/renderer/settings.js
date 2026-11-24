@@ -16,12 +16,16 @@ function settingRow({ icon, label, sub = '', checked = false, attrs = '', action
 function renderSearchSettings() {
     const box = document.getElementById('search-options');
     if (!box) return;
-    const current = currentEngine().id;
+    const current = normalEngine().id;
     box.innerHTML = SEARCH_ENGINES.map(e => settingRow({
         icon: escapeHtml(e.name[0]), label: e.name, checked: e.id === current, attrs: `data-engine="${e.id}"`,
     })).join('') + settingRow({
-        icon: '…', label: '入力中に検索候補を表示', sub: '入力した文字が検索エンジンに送られます', checked: searchSuggestEnabled(), attrs: 'data-suggest-toggle="1"',
-    });
+        icon: '…', label: '入力中に検索候補を表示', sub: '入力した文字が検索エンジンに送られます（シークレットタブでは送りません）', checked: searchSuggestEnabled(), attrs: 'data-suggest-toggle="1"',
+    }) + `<div class="setting-subhead">シークレットタブの検索エンジン</div>` + [['same', 'ふだんと同じ'], ['duckduckgo', 'DuckDuckGo'], ['startpage', 'Startpage'], ['brave', 'Brave Search']].map(([id, name]) => settingRow({
+        icon: id === 'same' ? '=' : escapeHtml(name[0]), label: name,
+        sub: id === 'duckduckgo' ? '検索した言葉を記録しない方針の検索エンジン（おすすめ）' : id === 'startpage' ? 'Google の結果を、記録せずに表示' : id === 'brave' ? '独自の検索。記録しない方針' : '',
+        checked: privateEngineSetting() === id, attrs: `data-private-engine="${id}"`,
+    })).join('');
 }
 
 async function renderMiscSettings() {
@@ -34,7 +38,17 @@ async function renderMiscSettings() {
         settingRow({ icon: '↗', label: 'ブックマークを新しいタブで開く', sub: 'オフ：表示中のタブで開く（Ctrl+クリックで逆）', checked: bookmarkOpenMode() === 'new', attrs: 'data-bm-open-toggle="1"' }) +
         settingRow({ icon: '⧉', label: 'タブをウィンドウの外へドラッグで別ウィンドウにする', checked: tabTearOffEnabled(), attrs: 'data-tearoff-toggle="1"' }) +
         settingRow({ icon: '★', label: 'ブックマークにサイトのアイコンを表示', sub: 'オフにすると星マーク', checked: siteIcons, attrs: 'data-bm-icon-toggle="1"' }) +
-        settingRow({ icon: '🗑', label: 'ゴミ箱に捨てる時に確認する', checked: trashConfirmEnabled(), attrs: 'data-trash-confirm-toggle="1"' });
+        settingRow({ icon: '🗑', label: 'ゴミ箱に捨てる時に確認する', checked: trashConfirmEnabled(), attrs: 'data-trash-confirm-toggle="1"' }) +
+        settingRow({ icon: '▤', label: 'タブにマウスを乗せると内容を表示', sub: 'タイトルとページの縮小画像（上タブの時）', checked: tabHoverEnabled(), attrs: 'data-tab-hover-toggle="1"' }) +
+        settingRow({ icon: '↗', label: 'リンクにマウスを乗せるとプレビュー', sub: '行き先のページを読み込みます（Cookie は送りません。シークレットタブでは使いません）', checked: linkPreviewEnabled(), attrs: 'data-link-preview-toggle="1"' });
+}
+
+// ▼ 追加：軽量化（不透明なウィンドウ）。次に開くウィンドウ（再起動後）から反映
+async function renderPerfSettings() {
+    const box = document.getElementById('perf-options');
+    if (!box || !window.electronAPI?.getAppSettings) return;
+    const s = await window.electronAPI.getAppSettings().catch(() => ({}));
+    box.innerHTML = settingRow({ icon: '⚡', label: 'ウィンドウの描画を軽くする', sub: '角の丸みと影は Windows 標準に。再起動後に反映', checked: s.opaqueWindow !== false, attrs: 'data-opaque-toggle="1"' });
 }
 
 function renderStartupSettings() {
@@ -88,6 +102,8 @@ document.getElementById('panel-settings').addEventListener('click', async (e) =>
     if (t.closest('[data-karaoke-toggle]')) { setKaraokeEnabled(!karaokeEnabled); return; }
     const engine = t.closest('[data-engine]');
     if (engine) { setSearchEngine(engine.getAttribute('data-engine')); renderSearchSettings(); return; }
+    const pe = t.closest('[data-private-engine]');
+    if (pe) { setPrivateEngine(pe.getAttribute('data-private-engine')); renderSearchSettings(); return; }
     if (t.closest('[data-suggest-toggle]')) { setSearchSuggestEnabled(!searchSuggestEnabled()); renderSearchSettings(); return; }
     if (t.closest('[data-bm-icon-toggle]')) { setBookmarkIconMode(bookmarkIconMode() === 'site' ? 'star' : 'site'); renderMiscSettings(); return; }
     if (t.closest('[data-dl-ask-toggle]')) {
@@ -97,6 +113,15 @@ document.getElementById('panel-settings').addEventListener('click', async (e) =>
     }
     if (t.closest('[data-bm-open-toggle]')) { setBookmarkOpenMode(bookmarkOpenMode() === 'new' ? 'current' : 'new'); renderMiscSettings(); return; }
     if (t.closest('[data-tearoff-toggle]')) { setTabTearOffEnabled(!tabTearOffEnabled()); renderMiscSettings(); return; }
+    if (t.closest('[data-tab-hover-toggle]')) { setTabHoverEnabled(!tabHoverEnabled()); renderMiscSettings(); return; }
+    if (t.closest('[data-link-preview-toggle]')) { setLinkPreviewEnabled(!linkPreviewEnabled()); renderMiscSettings(); return; }
+    if (t.closest('[data-opaque-toggle]')) {
+        const cur = await window.electronAPI.getAppSettings();
+        await window.electronAPI.setAppSetting('opaqueWindow', cur.opaqueWindow === false);
+        await renderPerfSettings();
+        if (typeof showToast === 'function') showToast('アプリを再起動すると反映されます');
+        return;
+    }
     if (t.closest('[data-trash-confirm-toggle]')) { setTrashConfirmEnabled(!trashConfirmEnabled()); renderMiscSettings(); return; }
     const unbypass = t.closest('[data-unbypass]');
     if (unbypass) {
@@ -117,6 +142,7 @@ document.querySelector('.tool-icon[data-panel="panel-settings"]').addEventListen
     renderSearchSettings();
     renderStartupSettings();
     renderMiscSettings();
+    renderPerfSettings();
     renderLyricsSettings();
     renderShieldSiteSettings();
     renderPermissionSettings();

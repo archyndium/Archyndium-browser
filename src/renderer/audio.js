@@ -125,6 +125,14 @@ function sendWaveformLoop() {
   syncTick();
 }
 
+let lastMiniSyncAt = 0, accentCache = '', accentCacheAt = 0;
+// テーマ色の読み取り（getComputedStyle は重いので 1 秒に 1 回だけ）
+function cachedThemeAccent() {
+  const t = performance.now();
+  if (!accentCache || t - accentCacheAt > 1000) { accentCache = getComputedStyle(document.documentElement).getPropertyValue('--theme-light').trim(); accentCacheAt = t; }
+  return accentCache;
+}
+
 function syncTick() {
   const newTitle = nowPlayingTitle.textContent;
   if (newTitle !== currentTrackTitleStr && newTitle !== '再生していません') {
@@ -141,6 +149,12 @@ function syncTick() {
   }
 
   karaokeTick(); // ▼ 追加：カラオケ表示の現在行を更新
+
+  // ▼ 軽量化：ミニプレイヤーへの送信は、ミニプレイヤーを開いている時だけ 0.05 秒ごと。
+  //   閉じている時は（別ウィンドウとの再生元の調整に使うだけなので）0.5 秒ごとにする
+  const nowMs = performance.now();
+  if (!miniPlayerOpen && nowMs - lastMiniSyncAt < 500) return;
+  lastMiniSyncAt = nowMs;
 
   // ▼ 時刻・シーク情報
   let progress = 0;
@@ -186,7 +200,7 @@ function syncTick() {
         rawTime: currentPlaybackTime(), rawDuration: audioPlaylist.length > 0 ? (audioEl.duration || 0) : currentMediaDuration,
         isManualLyrics: currentLyricsSyncManual,
         // ▼ 追加：本体のテーマ色（ミニプレイヤーの色をテーマに合わせる）
-        accent: getComputedStyle(document.documentElement).getPropertyValue('--theme-light').trim(),
+        accent: cachedThemeAccent(),
         // ▼ 追加：カラオケ表示（行データは変わった時だけ送る）
         karaoke: karaokeSyncPayload(),
         // ▼ 時間関連データをすべて送信

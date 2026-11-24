@@ -81,6 +81,8 @@ function renderTabstrip() {
         if (!collapsed) cards.forEach(c => { html += tsTabHtml(c, { color }); seen.add(c.dataset.tabId); });
     });
     tsTabsEl.innerHTML = html;
+    // シークレットタブを表示中は、タブ・ツールバー・ページの周りを同じ紫でつなげる
+    document.body.classList.toggle('private-active', !!activeTabId && isPrivateTab(activeTabId));
     tsKnown = seen;
     const active = tsTabsEl.querySelector('.ts-tab.active');
     if (active) {   // 表示中のタブが見えるようにスクロール
@@ -122,10 +124,15 @@ tsTabsEl.addEventListener('pointermove', (e) => {
     const dx = e.clientX - d.x0;
     if (!d.moved) {
         if (Math.abs(dx) < 5 && Math.abs(e.clientY - d.y0) < 5) return;
-        d.moved = true; d.el.classList.add('ts-dragging');
-        FX.emit('tab-drag-start', { id: d.id });
+        d.moved = true;
+        FX.emit('tab-drag-start', { id: d.id });   // 先に知らせる（演出がつかむ前の位置で雪を落とせるように）
+        d.el.classList.add('ts-dragging');
+        d.lastX = e.clientX; d.lastT = performance.now();
     }
     d.el.style.transform = `translateX(${dx}px)`;
+    const now = performance.now(), vx = (e.clientX - d.lastX) / Math.max(8, now - d.lastT) * 1000;
+    d.lastX = e.clientX; d.lastT = now;
+    FX.emit('tab-drag-move', { id: d.id, vx });
     // となりのタブの中央を越えたら、表示の上だけで入れ替える（離した時にサイドバーへ反映）
     const pinned = d.el.classList.contains('pinned');
     const sibs = [...tsTabsEl.querySelectorAll('.ts-tab:not(.ts-dragging)')].filter(s => s.classList.contains('pinned') === pinned);
@@ -188,6 +195,27 @@ document.getElementById('btn-panel').addEventListener('click', () => {
     document.body.classList.toggle('panel-open', open);
     commandCenter.classList.remove('collapsed');
 });
+// ▼ 追加：ツールバーのブックマーク・設定ボタン。パネルを開いてそのページを表示する（表示中ならパネルを閉じる）
+function openSidePanel(panelId) {
+    const icon = document.querySelector(`.tool-icon[data-panel="${panelId}"]`);
+    const showing = document.body.classList.contains('panel-open') && icon.classList.contains('active') && !commandCenter.classList.contains('collapsed');
+    if (isTopLayout() && showing) { document.body.classList.remove('panel-open'); return; }
+    document.body.classList.add('panel-open');
+    commandCenter.classList.remove('collapsed');
+    icon.classList.remove('active');   // panels.js に「別のパネルへの切り替え」として扱わせる（中身も描き直される）
+    icon.click();
+}
+const openSettingsPanel = () => openSidePanel('panel-settings');
+document.querySelectorAll('.panel-pill[data-open-panel]').forEach(btn => btn.addEventListener('click', () => openSidePanel(btn.dataset.openPanel)));
+const panelPillObserver = new MutationObserver(() => {
+    const open = document.body.classList.contains('panel-open');
+    document.querySelectorAll('.panel-pill[data-open-panel]').forEach(btn => {
+        btn.classList.toggle('on', open && document.querySelector(`.tool-icon[data-panel="${btn.dataset.openPanel}"]`)?.classList.contains('active'));
+    });
+});
+panelPillObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+panelPillObserver.observe(document.querySelector('.nexus'), { attributes: true, attributeFilter: ['class'], subtree: true });
+
 // 左のアイコンで「表示中のパネル」をもう一度押したら、パネルごと閉じる
 toolIcons.forEach(icon => icon.addEventListener('click', () => {
     if (isTopLayout() && commandCenter.classList.contains('collapsed')) { commandCenter.classList.remove('collapsed'); document.body.classList.remove('panel-open'); }
@@ -202,7 +230,10 @@ function updateNpChip() {
     const title = nowPlayingTitle?.textContent || '';
     const t = npChipEl.querySelector('.np-title span');
     if (t.textContent !== title) { t.textContent = title; npChipEl.querySelector('.np-title').title = title; }
-    npChipEl.querySelector('.np-play').innerHTML = isPlaying
+    const playBtn = npChipEl.querySelector('.np-play');
+    if (playBtn.dataset.state === String(!!isPlaying)) return;   // 変わった時だけ描き直す
+    playBtn.dataset.state = String(!!isPlaying);
+    playBtn.innerHTML = isPlaying
         ? '<svg viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" rx="1"></rect><rect x="14" y="4" width="4" height="16" rx="1"></rect></svg>'
         : '<svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>';
 }

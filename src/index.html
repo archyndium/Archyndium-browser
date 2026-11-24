@@ -114,6 +114,7 @@
           <div id="startup-options"></div>
           <div class="list-section-title">Performance - Tab Sleep</div>
           <div id="sleep-options"></div>
+          <div id="perf-options"></div>
           <div class="list-section-title">Downloads / Bookmarks / Trash</div>
           <div id="misc-options"></div>
           <div class="list-section-title">Lyrics</div>
@@ -251,6 +252,14 @@
         <svg class="dl-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><polyline points="7 10 12 15 17 10"></polyline><path d="M5 20h14"></path></svg>
         <span class="dl-dot" id="dl-dot"></span>
       </div>
+      <!-- ▼ 追加：ブックマーク一覧ボタン（上タブの時。パネルを開いてブックマークを表示） -->
+      <div class="glass-pill ext-pill panel-pill" id="btn-bookmarks-panel" data-open-panel="panel-bookmarks" title="ブックマーク">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+      </div>
+      <!-- ▼ 追加：設定ボタン（上タブの時。パネルを開いて設定を表示） -->
+      <div class="glass-pill ext-pill panel-pill settings-pill" id="btn-settings" data-open-panel="panel-settings" title="設定">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </div>
       <!-- ▼ 追加：再生中の曲（上タブの時。クリックで再生元のタブへ） -->
       <div class="glass-pill np-chip idle" id="np-chip">
         <span class="np-art"></span>
@@ -376,31 +385,35 @@
 
   <div class="shield-overlay" id="shield-overlay"></div>
   <div class="shield-panel" id="shield-popup">
-    <div class="sp-hero">
-      <div class="sp-emblem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path id="sp-emblem-mark" d="M9 12l2 2 4-4"></path></svg></div>
-      <div class="sp-hero-text">
-        <div class="sp-kicker">ARCHYNDIUM SHIELD</div>
+    <!-- ▼ 変更：他のポップアップと同じ見た目に作り直し（標準 / 簡易 / オフ） -->
+    <div class="sp-head">
+      <div class="sp-emblem"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path id="sp-emblem-mark" d="M9 12l2 2 4-4"></path></svg></div>
+      <div class="sp-head-text">
         <div class="sp-status" id="sp-status">—</div>
         <div class="sp-host" id="sp-host"></div>
       </div>
+      <div class="sp-stats">
+        <div class="sp-stat" title="このページでブロックした数"><b id="sp-page">0</b><span>このページ</span></div>
+        <div class="sp-stat" title="起動してからブロックした数"><b id="sp-total">0</b><span>合計</span></div>
+      </div>
     </div>
-    <!-- ▼ 追加：このサイトだけ保護を外すスイッチ -->
-    <div class="sp-site" id="sp-site">
-      <div class="sp-site-text"><b>このサイトでは無効にする</b><span id="sp-site-note">表示が崩れる・動かない時に</span></div>
-      <div class="sp-switch" id="sp-site-switch" role="switch" aria-checked="false"></div>
-    </div>
-    <div class="sp-stats">
-      <div class="sp-stat"><b id="sp-page">0</b><span>このページでブロック</span></div>
-      <div class="sp-stat"><b id="sp-total">0</b><span>起動してからの合計</span></div>
-    </div>
-    <!-- ▼ 追加：全タブ共通 / このタブだけ -->
     <div class="sp-scope" id="sp-scope">
       <div data-scope="global">全タブ共通</div>
       <div data-scope="tab">このタブだけ</div>
     </div>
     <div class="sp-scope-note" id="sp-scope-note"></div>
     <div class="sp-modes" id="shield-mode-list"></div>
-    <div class="sp-foot">モードを変えると、表示中のタブを再読み込みします</div>
+    <div class="sp-rows">
+      <div class="sp-row" id="sp-auto">
+        <div class="sp-row-text"><b>動画・音楽サイトでは自動で「簡易」にする</b><span>表示が崩れにくく、動画の広告はスキップします</span></div>
+        <div class="sp-switch" id="sp-auto-switch" role="switch" aria-checked="false"></div>
+      </div>
+      <div class="sp-row" id="sp-site">
+        <div class="sp-row-text"><b>このサイトでは無効にする</b><span id="sp-site-note">表示が崩れる・動かない時に</span></div>
+        <div class="sp-switch" id="sp-site-switch" role="switch" aria-checked="false"></div>
+      </div>
+    </div>
+    <div class="sp-foot">切り替えると、表示中のタブを再読み込みします</div>
   </div>
 </div>
 
@@ -441,6 +454,8 @@
 <script src="renderer/settings.js"></script>
 <script src="renderer/fx/fx-settings.js"></script>
 <script src="renderer/tabstrip.js"></script>
+<script src="renderer/previews.js"></script>
+<script src="renderer/copy-unlock.js"></script>
 <script src="renderer/shortcuts.js"></script>
 <script src="renderer/app.js"></script>
 </body>

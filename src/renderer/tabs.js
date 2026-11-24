@@ -8,6 +8,8 @@ function isPrivateTab(tabId) {
 
 // sleeping = true の時は webview を作らず休止状態のタブにする（セッション復元用。クリックで読み込む）
 async function createNewTabElement(url = getHomeUrl(), { isPrivate = false, sleeping = false, title = '', favicon = '' } = {}) {
+  // ▼ 追加：シークレットタブを「新しいタブ」で開く時は、シークレット用の検索エンジンのトップにする
+  if (isPrivate && typeof privateEngine === 'function' && (url === normalEngine().home || url === privateEngine().home)) url = privateEngine().home;
   tabCounter++; 
   const tabId = `tab-${tabCounter}`;
   const newTab = document.createElement('div');
@@ -66,6 +68,7 @@ function switchTab(tabId) {
     }
 
     document.getElementById('omnibar-pill').classList.toggle('private-mode', isPrivateTab(tabId));
+    if (typeof updateOmnibarPlaceholder === 'function') updateOmnibarPlaceholder(); // シークレットタブは検索エンジンが違うことがある
 
     // ▼ 修正：タブ切替時にURLバーとブックマークの★を切替先のタブに合わせる
     const card = getTabCard(tabId);
@@ -105,6 +108,7 @@ function createWebviewForTab(tabId, url) {
         // ▼ 追加：サイトごとのズーム・強制ダークモードを反映
         if (typeof applySiteZoom === 'function') applySiteZoom(tabId);
         if (typeof applyForceDark === 'function') applyForceDark(tabId);
+        if (typeof applyCopyUnlockIfSaved === 'function') applyCopyUnlockIfSaved(tabId); // コピー制限を解除したサイト
 
         // ▼ 変更：タブごとのモード（上書きが無ければ全体の設定）
         const mode = effectiveShieldMode(tabId);
@@ -117,8 +121,12 @@ function createWebviewForTab(tabId, url) {
         
         const hybridScript = `
           const runBlocker = ${runDomBlocker};
+          // ▼ 軽量化：以前はどのサイトでも 0.05 秒ごとに広告を探していた（重さの原因）。
+          //   探す広告は動画サイトのものだけなので動画サイトでだけ動かし、ページが変わった時（MutationObserver）と
+          //   0.25 秒ごとの確認にまとめる。ほかのサイトの広告は通信のブロック（main/adblock.js）で止まる
+          const isVideoSite = /(^|\\.)youtube\\.com$/.test(location.hostname);
           const killAds = () => {
-            if(!runBlocker) return; // ▼追加：モード0(OFF)の時は即座に終了する
+            if(!runBlocker) return;
             
             // 1. 一般的な広告枠の非表示
             document.querySelectorAll('ytd-ad-slot-renderer, ytd-promoted-sparkles-web-renderer, ytd-banner-promo-renderer, #masthead-ad, .ytd-in-feed-ad-layout-renderer, .ytd-video-masthead-ad-v3-renderer').forEach(el => el.style.display = 'none');
@@ -137,29 +145,33 @@ function createWebviewForTab(tabId, url) {
               if (video.currentTime < video.duration - 0.5) video.currentTime = video.duration - 0.1;
             }
             
-            // 4. 動画サイトの「広告ブロッカー警告」を閉じて動画を再生する
+            // 4. 「広告ブロッカー警告」を閉じて動画を再生する
             const popup1 = document.querySelector('ytd-enforcement-message-view-model');
             const popup2 = document.querySelector('tp-yt-paper-dialog');
-            const backdrop = document.querySelector('iron-overlay-backdrop'); // ▼追加：暗い背景幕
+            const backdrop = document.querySelector('iron-overlay-backdrop');
             let isBlocked = false;
             
             if (popup1) { popup1.remove(); isBlocked = true; }
             if (popup2 && popup2.innerHTML.includes('Ad blockers')) { popup2.remove(); isBlocked = true; }
-            if (backdrop) { backdrop.remove(); } // ▼追加：暗幕も消す
+            if (backdrop) { backdrop.remove(); }
             
-            // ▼追加：画面のスクロールロックを解除
-            if (document.body.style.overflow === 'hidden') {
+            if (document.body && document.body.style.overflow === 'hidden') {
                 document.body.style.overflow = '';
             }
             
-            // 警告が出て止められていた場合、直ちに再生を再開する
             if (isBlocked && video && video.paused) {
                 video.play();
             }
           };
           
-          // 0.05秒に1回、広告や警告が出ていないか確認する
-          setInterval(killAds, 50);
+          if (isVideoSite && runBlocker && !window.__archyndium_ads) {
+            window.__archyndium_ads = true;
+            let queued = false;
+            const schedule = () => { if (queued) return; queued = true; setTimeout(() => { queued = false; killAds(); }, 60); };
+            new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+            setInterval(killAds, 250);
+            killAds();
+          }
 
           // ▼ 追加：マウスのサイドボタン（3 = 戻る / 4 = 進む）をブラウザの戻る・進むにする
           if (!window.__archyndium_mouse_nav) {
@@ -169,6 +181,28 @@ function createWebviewForTab(tabId, url) {
             }, true);
             // 分割表示で、クリックした側のページを操作対象にするための合図
             window.addEventListener('mousedown', () => console.log('ARCHYNDIUM_PANE_FOCUS'), true);
+          }
+
+          // ▼ 追加：リンクにマウスを乗せた時のプレビュー（0.7 秒止まったら位置と行き先を知らせる）
+          if (!window.__archyndium_hover) {
+            window.__archyndium_hover = true;
+            let hoverTimer = null, current = null;
+            const out = () => { if (current) { current = null; clearTimeout(hoverTimer); console.log('ARCHYNDIUM_LINKOUT'); } };
+            document.addEventListener('mouseover', (e) => {
+              const a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+              if (a === current) return;
+              out();
+              if (!a || !/^https?:/.test(a.href) || a.href.split('#')[0] === location.href.split('#')[0]) return;
+              current = a;
+              hoverTimer = setTimeout(() => {
+                if (current !== a) return;
+                const r = a.getBoundingClientRect();
+                console.log('ARCHYNDIUM_LINKHOVER:' + JSON.stringify({ href: a.href, x: r.left, y: r.top, w: r.width, h: r.height }));
+              }, 700);
+            }, true);
+            ['mousedown', 'wheel', 'keydown'].forEach(ev => window.addEventListener(ev, out, { capture: true, passive: true }));
+            window.addEventListener('blur', out);
+            document.addEventListener('mouseleave', out);
           }
 
           // 音楽プレイヤーとの同期（シークバーや曲名の取得）
@@ -225,6 +259,10 @@ function createWebviewForTab(tabId, url) {
     });
 
     wv.addEventListener('found-in-page', (e) => onFoundInPage(tabId, e.result));
+    // タブにマウスを乗せた時のカード用に、読み込みが終わったら表示中のタブの縮小画像を撮っておく
+    wv.addEventListener('did-stop-loading', () => { if (tabId === activeTabId && typeof captureTabThumb === 'function') setTimeout(() => captureTabThumb(tabId), 900); });
+    // スピーカーアイコンを、再生・停止した時にすぐ出し入れする
+    ['media-started-playing', 'media-paused'].forEach(ev => wv.addEventListener(ev, () => { if (typeof updateTabAudioIcons === 'function') setTimeout(updateTabAudioIcons, 150); }));
     // 分割表示中、もう片方のページをクリックしたらそちらを操作対象にする
     wv.addEventListener('focus', () => { if (typeof onSplitPaneFocus === 'function') onSplitPaneFocus(tabId); });
     // 最初の読み込みより前に、このタブの Shield モードを main に伝える
@@ -238,6 +276,10 @@ function createWebviewForTab(tabId, url) {
             onMediaPlaying(tabId);
         } else if (msg === 'ARCHYNDIUM_PAUSED') {
             onMediaPaused(tabId);
+        } else if (msg.startsWith('ARCHYNDIUM_LINKHOVER:')) {
+            try { if (typeof onLinkHover === 'function') onLinkHover(tabId, JSON.parse(msg.slice('ARCHYNDIUM_LINKHOVER:'.length))); } catch(err) {}
+        } else if (msg === 'ARCHYNDIUM_LINKOUT') {
+            if (typeof hideLinkPreview === 'function') hideLinkPreview();
         } else if (msg === 'ARCHYNDIUM_PANE_FOCUS') {
             if (typeof onSplitPaneFocus === 'function') onSplitPaneFocus(tabId);
         } else if (msg.startsWith('ARCHYNDIUM_NAV:')) {

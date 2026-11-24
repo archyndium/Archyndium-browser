@@ -18,10 +18,31 @@ const SEARCH_ENGINES = [
     { id: 'startpage',  name: 'Startpage',      home: 'https://www.startpage.com/',   search: q => `https://www.startpage.com/do/search?q=${encodeURIComponent(q)}` },
 ];
 
-function currentEngine() {
+// ふだんの検索エンジン
+function normalEngine() {
     let id = 'google';
     try { id = localStorage.getItem(SEARCH_ENGINE_KEY) || 'google'; } catch(e) {}
     return SEARCH_ENGINES.find(e => e.id === id) || SEARCH_ENGINES[0];
+}
+
+// ▼ 追加：シークレットタブで使う検索エンジン（初期値 DuckDuckGo。'same' はふだんと同じ）
+//   検索した言葉を記録・追跡しないとしている検索エンジンを使うと、シークレットタブでの検索がより残りにくくなる
+const PRIVATE_ENGINE_KEY = 'archyndium_private_search_engine';
+function privateEngineSetting() {
+    try { return localStorage.getItem(PRIVATE_ENGINE_KEY) || 'duckduckgo'; } catch(e) { return 'duckduckgo'; }
+}
+function privateEngine() {
+    const id = privateEngineSetting();
+    return id === 'same' ? normalEngine() : (SEARCH_ENGINES.find(e => e.id === id) || normalEngine());
+}
+function setPrivateEngine(id) {
+    try { localStorage.setItem(PRIVATE_ENGINE_KEY, id); } catch(e) {}
+    updateOmnibarPlaceholder();
+}
+
+// 表示中のタブに合わせた検索エンジン（シークレットタブならシークレット用）
+function currentEngine() {
+    return typeof activeTabId !== 'undefined' && activeTabId && typeof isPrivateTab === 'function' && isPrivateTab(activeTabId) ? privateEngine() : normalEngine();
 }
 
 function setSearchEngine(id) {
@@ -125,6 +146,7 @@ async function updateOmniSuggest() {
     renderOmniSuggest();
 
     if (!searchSuggestEnabled() || !window.electronAPI?.searchSuggest) return;
+    if (activeTabId && isPrivateTab(activeTabId)) return; // シークレットタブでは、入力中の文字を検索候補のために送らない
     const remote = await window.electronAPI.searchSuggest(engine.id, q);
     if (seq !== omniSeq) return; // 入力が進んでいたら捨てる
     const suggestions = remote.filter(s => s.toLowerCase() !== q.toLowerCase()).slice(0, 5)

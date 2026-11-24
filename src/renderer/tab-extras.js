@@ -108,6 +108,8 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
         { id: 'workspace', label: 'Work / Focus に登録', enabled: /^https?:/i.test(url) },
         { type: 'separator' },
         { id: 'copy', label: 'URL をコピー' },
+        { id: 'unlock-copy', label: 'このサイトのコピー制限を解除' },
+        { id: 'extract-text', label: 'ページの文字を取り出す' },
         { id: 'private', label: 'シークレットタブで開き直す', enabled: !isPrivateTab(tabId) && /^https?:/.test(url) },
         { type: 'separator' },
         ...(selection ? [
@@ -136,6 +138,8 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
         case 'workspace': addTabToWorkspace(card); showToast('Work / Focus に登録しました'); break;
         case 'player': (mediaLocked && mediaTargetTabId === tabId) ? toggleMediaLock() : setMediaTarget(tabId, { lock: true }); break;
         case 'copy': navigator.clipboard.writeText(url).catch(() => {}); break;
+        case 'unlock-copy': unlockCopy(tabId); break;
+        case 'extract-text': extractPageText(tabId); break;
         case 'private': openNewTab(url, { isPrivate: true }); break;
         case 'close': closeTab(tabId); break;
         case 'close-others': if (activeTabId !== tabId) card.click(); closeTabsBulk(ids(all.filter(c => c !== card))); break;
@@ -149,4 +153,6 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
     }
 });
 
-setInterval(updateTabAudioIcons, 1000);
+// ▼ 軽量化：音の状態の確認（タブごとに main へ問い合わせる）は 2.5 秒ごと。再生・停止の瞬間は
+//   webview のイベント（tabs.js の media-started-playing / media-paused）からすぐに更新する
+setInterval(updateTabAudioIcons, 2500);

@@ -1,29 +1,47 @@
 // ==========================================
-// ★ ARCHYNDIUM SHIELD（広告ブロッカー 3モード制御）
+// ★ ARCHYNDIUM SHIELD（広告ブロック：標準 / 簡易 / オフ）
 // ==========================================
-// mode 2 = AEGIS（全方位）/ 1 = STREAM（動画特化）/ 0 = BYPASS（停止）
+// mode 2 = 標準（通信 + 表示のブロック）/ 1 = 簡易（ページ内の広告を隠す・動画広告のスキップだけ）/ 0 = オフ
 // ※ main プロセス側のモード番号は従来と同じなので、保存済みの設定などはそのまま使えます
+// ▼ 追加：「動画・音楽サイトでは自動で簡易にする」（初期値オン）。全体が標準の時だけ、そのタブを簡易にする
 const btnShield = document.getElementById('btn-shield');
 const shieldOverlay = document.getElementById('shield-overlay');
 const shieldPopup = document.getElementById('shield-popup');
 
 const SHIELD_MODES = [
     {
-        mode: 2, name: 'AEGIS', tag: '全方位ブロック', status: '<em>AEGIS</em> で保護中',
-        desc: '広告・トラッカーを通信レベルで遮断。一般サイト向けの最強モード',
+        mode: 2, name: '標準', tag: '広告・トラッカーをブロック', status: '広告ブロック：標準',
+        desc: 'ほとんどのサイト向け。通信と表示の両方で広告・トラッカーを止めます',
         icon: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="M9 12l2 2 4-4"></path>',
     },
     {
-        mode: 1, name: 'STREAM', tag: '動画特化', status: '<em>STREAM</em> で保護中',
-        desc: '動画サイトの広告を自動でスキップし、広告ブロッカーへの警告も表示させない',
-        icon: '<polygon points="6 4 20 12 6 20 6 4"></polygon>',
+        mode: 1, name: '簡易', tag: '軽めのブロック', status: '広告ブロック：簡易',
+        desc: 'ページ内の広告を隠し、動画の広告は自動でスキップ。表示が崩れにくいモード',
+        icon: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><line x1="8.5" y1="12" x2="15.5" y2="12"></line>',
     },
     {
-        mode: 0, name: 'BYPASS', tag: '保護オフ', status: '<em>BYPASS</em>：保護していません',
-        desc: 'すべてのブロックを停止。表示が崩れるサイトの確認用',
+        mode: 0, name: 'オフ', tag: 'ブロックしない', status: '広告ブロック：オフ',
+        desc: 'すべてのブロックを止めます。表示の確認用',
         icon: '<circle cx="12" cy="12" r="9"></circle><line x1="5.6" y1="5.6" x2="18.4" y2="18.4"></line>',
     },
 ];
+
+// 動画・音楽サイト（自動で「簡易」にするサイト）
+const SHIELD_MEDIA_HOSTS = /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com|soundcloud\.com|nicovideo\.jp|spotify\.com|music\.apple\.com|bandcamp\.com|twitch\.tv|vimeo\.com|dailymotion\.com|music\.amazon\.co\.jp|music\.amazon\.com|tver\.jp|abema\.tv)$/i;
+const SHIELD_AUTO_KEY = 'archyndium_shield_auto';
+let shieldAutoLite = (() => { try { return localStorage.getItem(SHIELD_AUTO_KEY) !== 'off'; } catch (e) { return true; } })();
+function setShieldAutoLite(on) {
+    shieldAutoLite = on;
+    try { localStorage.setItem(SHIELD_AUTO_KEY, on ? 'on' : 'off'); } catch (e) {}
+    Object.keys(webviews).forEach(syncTabShieldToMain);
+}
+function isMediaSiteTab(tabId) {
+    try { return SHIELD_MEDIA_HOSTS.test(new URL(getTabCard(tabId)?.getAttribute('data-url') || '').hostname); } catch (e) { return false; }
+}
+// このタブに「自動で簡易」が効いているか（タブだけの設定がある時は効かない）
+function shieldAutoApplies(tabId = activeTabId) {
+    return !!tabId && shieldAutoLite && tabShieldModes[tabId] === undefined && globalShieldMode === 2 && isMediaSiteTab(tabId);
+}
 
 function shieldModeInfo(mode) {
     return SHIELD_MODES.find(m => m.mode === mode) || SHIELD_MODES[0];
@@ -34,7 +52,8 @@ let globalShieldMode = 2;
 const tabShieldModes = {};
 
 function effectiveShieldMode(tabId = activeTabId) {
-    return tabId && tabShieldModes[tabId] !== undefined ? tabShieldModes[tabId] : globalShieldMode;
+    if (tabId && tabShieldModes[tabId] !== undefined) return tabShieldModes[tabId];
+    return shieldAutoApplies(tabId) ? 1 : globalShieldMode;
 }
 
 // main 側（通信のブロック判定）にタブのモードを伝える。webview を作り直した時（休止からの復帰など）も呼ぶ
@@ -43,7 +62,8 @@ function syncTabShieldToMain(tabId) {
     if (!wv || !window.electronAPI?.setTabShield) return;
     let wcId = null;
     try { wcId = wv.getWebContentsId(); } catch(e) { return; }
-    window.electronAPI.setTabShield(wcId, tabShieldModes[tabId] !== undefined ? tabShieldModes[tabId] : null);
+    const override = tabShieldModes[tabId] !== undefined ? tabShieldModes[tabId] : shieldAutoApplies(tabId) ? 1 : null;
+    window.electronAPI.setTabShield(wcId, override);
 }
 
 function setTabShieldMode(tabId, mode) {
@@ -71,11 +91,12 @@ function updateTabShieldBadge(tabId) {
 }
 
 function updateShieldIcon(mode = effectiveShieldMode()) {
-    btnShield.classList.remove('active-shield', 'shield-youtube');
-    if (mode === 2) btnShield.classList.add('active-shield'); // 青白い光(AEGIS)
-    else if (mode === 1) btnShield.classList.add('shield-youtube'); // 赤い光(STREAM)
-    const scope = activeTabId && tabShieldModes[activeTabId] !== undefined ? '（このタブ）' : '';
-    btnShield.title = `Shield: ${shieldModeInfo(mode).name}${scope}`;
+    btnShield.classList.remove('active-shield', 'shield-lite', 'shield-off');
+    btnShield.classList.add(mode === 2 ? 'active-shield' : mode === 1 ? 'shield-lite' : 'shield-off');
+    const scope = activeTabId && tabShieldModes[activeTabId] !== undefined ? '（このタブだけ）' : shieldAutoApplies() ? '（動画・音楽サイトのため自動）' : '';
+    btnShield.title = `広告ブロック：${shieldModeInfo(mode).name}${scope}`;
+    const mark = mode === 2 ? 'M9 12l2 2 4-4' : mode === 1 ? 'M8.5 12h7' : 'M9.5 9.5l5 5M14.5 9.5l-5 5';
+    btnShield.querySelector('svg').innerHTML = `<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path><path d="${mark}"></path>`;
 }
 
 if (window.electronAPI && window.electronAPI.getAdblockMode) {
@@ -89,7 +110,7 @@ async function refreshShieldSiteState() {
     currentSiteBypassed = false;
     try { if (/^https?:/.test(urlInput.value)) currentSiteBypassed = (await window.electronAPI.getShieldSite(urlInput.value)).bypassed; } catch(e) {}
     btnShield.classList.toggle('shield-site-off', currentSiteBypassed);
-    if (currentSiteBypassed) btnShield.title = 'Shield: このサイトは例外（無効）';
+    if (currentSiteBypassed) btnShield.title = '広告ブロック：このサイトでは無効';
     else updateShieldIcon();
     return currentSiteBypassed;
 }
@@ -105,14 +126,16 @@ function renderShieldPanel() {
     // サイト例外中はパネル全体を BYPASS の色にする
     shieldPopup.setAttribute('data-mode', currentSiteBypassed ? 0 : mode);
     shieldPopup.classList.toggle('site-off', currentSiteBypassed);
-    document.getElementById('sp-status').innerHTML = currentSiteBypassed ? '<em>このサイト</em>は例外です'
-        : scope === 'tab' ? `このタブは <em>${info.name}</em>` : info.status;
+    document.getElementById('sp-status').textContent = currentSiteBypassed ? '広告ブロック：このサイトでは無効'
+        : scope === 'tab' ? `このタブだけ：${info.name}` : shieldAutoApplies() ? '広告ブロック：簡易（自動）' : info.status;
+    document.getElementById('sp-auto-switch').classList.toggle('on', shieldAutoLite);
+    document.getElementById('sp-auto-switch').setAttribute('aria-checked', shieldAutoLite);
     document.getElementById('sp-site').classList.toggle('on', currentSiteBypassed);
     document.getElementById('sp-site-switch').classList.toggle('on', currentSiteBypassed);
     document.getElementById('sp-site-switch').setAttribute('aria-checked', currentSiteBypassed);
     document.getElementById('sp-site-note').textContent = currentSiteBypassed ? 'このサイトでは広告ブロックを止めています' : '表示が崩れる・動かない時に';
     document.getElementById('sp-site').style.display = /^https?:/.test(urlInput.value) ? '' : 'none';
-    document.getElementById('sp-emblem-mark').setAttribute('d', mode === 0 || currentSiteBypassed ? 'M9 9l6 6M15 9l-6 6' : 'M9 12l2 2 4-4');
+    document.getElementById('sp-emblem-mark').setAttribute('d', mode === 0 || currentSiteBypassed ? 'M9.5 9.5l5 5M14.5 9.5l-5 5' : mode === 1 ? 'M8.5 12h7' : 'M9 12l2 2 4-4');
 
     let host = '';
     try { host = new URL(urlInput.value).hostname; } catch(e) {}
@@ -122,7 +145,7 @@ function renderShieldPanel() {
     document.querySelectorAll('#sp-scope [data-scope]').forEach(el => el.classList.toggle('selected', el.getAttribute('data-scope') === scope));
     document.getElementById('sp-scope-note').textContent = scope === 'tab'
         ? `他のタブは全体の設定（${shieldModeInfo(globalShieldMode).name}）のまま`
-        : '下で選んだモードが全部のタブに効きます';
+        : shieldAutoApplies() ? '全体は「標準」。このサイトは動画・音楽サイトなので自動で「簡易」にしています' : '選んだモードがすべてのタブに効きます';
 
     document.getElementById('shield-mode-list').innerHTML = SHIELD_MODES.map(m => `
         <div class="sp-mode ${m.mode === mode ? 'selected' : ''}" data-mode="${m.mode}">
@@ -148,7 +171,7 @@ function positionShieldPanel() {
     const width = shieldPopup.offsetWidth || 340;
     const left = Math.min(Math.max(12, r.left - 14), window.innerWidth - width - 12);
     shieldPopup.style.left = `${left}px`;
-    shieldPopup.style.top = `${r.bottom + 12}px`;
+    shieldPopup.style.top = `${r.bottom + 10}px`;
 }
 
 function closeShieldPanel() {
@@ -162,8 +185,6 @@ function reloadActiveTab() {
 
 btnShield.addEventListener('click', async (e) => {
     e.stopPropagation();
-    btnShield.style.transform = 'scale(1.2)';
-    setTimeout(() => btnShield.style.transform = 'scale(1)', 200);
 
     globalShieldMode = await window.electronAPI.getAdblockMode();
     await refreshShieldSiteState();
@@ -183,6 +204,7 @@ document.getElementById('shield-mode-list').addEventListener('click', async (e) 
             setTabShieldMode(activeTabId, mode);
         } else {
             globalShieldMode = await window.electronAPI.setAdblockMode(mode);
+            Object.keys(webviews).forEach(syncTabShieldToMain); // 「自動で簡易」は全体が標準の時だけ効くので、全タブを伝え直す
         }
         await refreshShieldSiteState();
         renderShieldPanel();
@@ -221,3 +243,21 @@ document.getElementById('sp-site-switch').addEventListener('click', async () => 
 
 shieldOverlay.addEventListener('click', closeShieldPanel);
 window.addEventListener('resize', () => { if (shieldPopup.classList.contains('show')) positionShieldPanel(); });
+
+// ▼ 追加：「動画・音楽サイトでは自動で簡易」のスイッチ
+document.getElementById('sp-auto-switch').addEventListener('click', async () => {
+    const before = effectiveShieldMode();
+    setShieldAutoLite(!shieldAutoLite);
+    await refreshShieldSiteState();
+    renderShieldPanel();
+    if (effectiveShieldMode() !== before) reloadActiveTab();
+});
+// ページを移動して動画・音楽サイトに入った / 出た時に、そのタブのモードを main に伝え直す
+const shieldAutoState = {};
+tabUrlChangeHooks.push((tabId) => {
+    const now = shieldAutoApplies(tabId);
+    if (shieldAutoState[tabId] === now) return;
+    shieldAutoState[tabId] = now;
+    syncTabShieldToMain(tabId);
+    if (tabId === activeTabId) updateShieldIcon();
+});

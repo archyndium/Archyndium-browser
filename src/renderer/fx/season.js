@@ -62,11 +62,11 @@
         const bottom = Math.max(document.querySelector('.canvas-header').getBoundingClientRect().bottom, ll.classList.contains('show') ? ll.getBoundingClientRect().bottom : 0);
         dpr = Math.min(2, devicePixelRatio || 1);
         W = host.width; H = Math.max(strip.height, bottom - host.top); stripH = strip.bottom - host.top;
-        cv.style.height = H + 'px';
+        if (cv.style.height !== H + 'px') cv.style.height = H + 'px';
         if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
         const tr = document.getElementById('ts-tabs').getBoundingClientRect();
         clip = { x0: tr.left - host.left, x1: tr.right - host.left };
-        geo = [...document.querySelectorAll('#ts-tabs .ts-tab:not(.ts-dragging):not(.ts-leave)')].map(el => {
+        geo = [...document.querySelectorAll('#ts-tabs .ts-tab:not(.ts-leave)')].map(el => {
             const b = el.getBoundingClientRect(), id = el.dataset.id;
             const x0 = b.left - host.left + 9, x1 = b.right - host.left - 9, n = Math.max(2, Math.floor((x1 - x0) / 2));
             let p = piles.get(id);
@@ -76,10 +76,10 @@
                 for (let i = 0; i < n; i++) cap.push(0.62 + 0.38 * (0.5 + 0.5 * Math.sin(i * 0.37 + seed * 1.7) * Math.cos(i * 0.11 + seed)));
                 p = { h, cap }; piles.set(id, p);
             }
-            return { id, x0, x1, top: b.top - host.top };
+            return { id, x0, x1, top: b.top - host.top, drag: el.classList.contains('ts-dragging') };
         }).filter(g => g.x1 > clip.x0 && g.x0 < clip.x1);
     }
-    const tabAt = (x) => geo.find(g => x >= g.x0 && x <= g.x1);
+    const tabAt = (x) => geo.find(g => !g.drag && x >= g.x0 && x <= g.x1);
 
     // ---------- 積もる ----------
     function depositPerLanding() {
@@ -326,7 +326,9 @@
             if ((idleT += dt) < 0.5) return;
         }
         idleT = 0;
-        if (needMeasure) measure();
+        // ▼ 修正：パネルの開閉やタブの出入りのアニメーション中に測ると、終わった後も古い位置のままずれていた。
+        //   描くたびに測り直す（タブの数だけ位置を読むだけなので軽い）
+        measure();
         fdt = dt;
         if (falling) {
             const n = S.rate * SEASON[kind].spawn * tempo() * dt * ((clip.x1 - clip.x0) / 900);
@@ -372,10 +374,20 @@
         const g = el && geo.find(x => x.id === el.dataset.id);
         if (g) spawn(g.x0 + (g.x1 - g.x0) * (0.3 + Math.random() * 0.4), -6, true);
     });
-    FX.on('tab-drag-start', ({ id }) => { if (running) { measure(); crumble(id, 1, 0); needMeasure = true; } });
+    // つかんだ瞬間に半分ほど崩れ、動かしている間も速さに合わせて少しずつ落ちる
+    FX.on('tab-drag-start', ({ id }) => { if (running) { measure(); crumble(id, 0.5, 0); needMeasure = true; } });
+    FX.on('tab-drag-move', ({ id, vx }) => {
+        if (!running) return;
+        measure();
+        const frac = Math.min(0.6, Math.abs(vx) / 2500);
+        if (frac > 0.02) crumble(id, frac, vx * 0.5);
+        wasMoving = true;
+    });
     FX.on('tab-close', ({ id }) => { if (running) { measure(); crumble(id, 1); piles.delete(id); stuck.delete(id); needMeasure = true; } });
     FX.on('window-shake', ({ strength, dir }) => { if (running) { measure(); crumble(null, 0.25 + 0.25 * strength, dir * 300); } });
     window.addEventListener('resize', () => { needMeasure = true; });
+    // アニメーションが終わった時も、止まっている間の描き直し（0.5 秒ごと）を待たずに測り直す
+    ['transitionend', 'animationend'].forEach(ev => document.addEventListener(ev, () => { needMeasure = true; idleT = 1; }, true));
 
     FX.register({
         id: 'season',
