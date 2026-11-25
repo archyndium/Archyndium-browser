@@ -341,19 +341,20 @@
   </main>
 
   <div class="bookmark-overlay" id="bm-overlay"></div>
-  <div class="bookmark-popup" id="bookmark-popup">
-    <div class="bm-popup-header">Save Bookmark</div>
-    <div class="bm-popup-row">
-      <label>Name</label>
-      <input type="text" id="bm-input-name" class="bm-popup-input">
+  <!-- ▼ 変更：ブックマークの小窓。★ ボタンの下に出る小さなポップアップにした -->
+  <div class="bookmark-popup" id="bookmark-popup" role="dialog" aria-labelledby="bm-popup-title">
+    <div class="bmp-head">
+      <div class="bmp-icon" id="bm-popup-icon"></div>
+      <div class="bmp-headtext"><b id="bm-popup-title">ブックマークに追加</b><span id="bm-popup-url"></span></div>
+      <div class="bmp-close" id="bm-popup-close" title="閉じる (Esc)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></div>
     </div>
-    <div class="bm-popup-row">
-      <label>Folder</label>
-      <div class="bm-folder-list" id="bm-folder-list"></div>
-    </div>
+    <label class="bmp-field"><span>名前</span><input type="text" id="bm-input-name" class="bm-popup-input" spellcheck="false"></label>
+    <div class="bmp-field"><span>フォルダ</span><div class="bm-folder-list" id="bm-folder-list"></div></div>
     <div class="bm-popup-actions">
-      <div class="bm-btn remove" id="bm-btn-remove">Remove</div>
-      <div class="bm-btn done" id="bm-btn-done">Save</div>
+      <div class="bmp-delete" id="bm-btn-remove">削除</div>
+      <div class="bmp-spacer"></div>
+      <div class="bm-btn" id="bm-btn-cancel">キャンセル</div>
+      <div class="bm-btn done" id="bm-btn-done">保存</div>
     </div>
   </div>
 

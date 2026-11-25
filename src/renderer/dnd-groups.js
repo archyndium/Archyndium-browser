@@ -216,7 +216,7 @@ document.getElementById('btn-new-group').addEventListener('click', () => {
 document.getElementById('btn-new-bm-folder').addEventListener('click', () => {
   const container = document.getElementById('bookmarks-list');
   const newFolder = document.createElement('div'); newFolder.className = 'tab-group bm-folder';
-  const folderId = 'bm-folder-' + Date.now(); // ▼ 追加：フォルダに一意のIDを付与
+  const folderId = 'bm-folder-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7); // ▼ 追加：フォルダに一意のIDを付与（続けて作っても重ならない）
   newFolder.innerHTML = `
     <div class="group-header">
       <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>

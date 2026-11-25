@@ -182,39 +182,46 @@ webview { flex: 1; width: 100%; height: 100%; border: none; }
 .btn-re-search { background: var(--theme-base); color: #fff; padding: 8px; border-radius: 6px; text-align: center; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.2s; }
 .btn-re-search:hover { background: var(--theme-light); color: #000; }
 
-/* ブックマーク・オーバーレイUI */
-.bookmark-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 199; display: none; opacity: 0; transition: opacity 0.3s; }
-.bookmark-overlay.show { display: block; opacity: 1; }
-
+/* ▼ 変更：ブックマークの小窓（★ ボタンの下に出るポップアップ。他のポップアップと同じ見た目） */
+.bookmark-overlay { position: fixed; inset: 0; z-index: 199; display: none; background: transparent; }
+.bookmark-overlay.show { display: block; }
 .bookmark-popup {
-  position: absolute; top: 70px; left: 50%; transform: translateX(-50%) translateY(-20px);
-  width: 320px; background: var(--bg-popover-glass); backdrop-filter: blur(40px);
-  border: 1px solid rgba(var(--ink), 0.1); border-radius: 16px; padding: 24px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.7); z-index: 200; display: flex; flex-direction: column; gap: 16px;
-  opacity: 0; pointer-events: none; transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+  position: fixed; top: 60px; left: 50%; width: 340px; max-width: calc(100vw - 24px); z-index: 200; padding: 14px;
+  background: var(--bg-popover); border: 1px solid rgba(var(--ink), 0.1); border-radius: 16px; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+  display: flex; flex-direction: column; gap: 12px; color: var(--text-primary);
+  opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.bookmark-popup.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
-.bm-popup-header { font-size: 16px; font-weight: 700; color: var(--text-strong); text-align: center; margin-bottom: 4px; letter-spacing: 0.5px;}
-
-.bm-popup-row { display: flex; flex-direction: column; gap: 8px; }
-.bm-popup-row label { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em;}
-.bm-popup-input { width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(var(--ink), 0.1); color: var(--text-strong); padding: 12px; border-radius: 8px; font-size: 14px; outline: none; transition: 0.2s; }
-.bm-popup-input:focus { border-color: var(--theme-base); box-shadow: 0 0 0 2px rgba(46, 65, 86, 0.4); }
-
-.bm-folder-list { display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 6px; border: 1px solid rgba(var(--ink), 0.05);}
-.bm-folder-list::-webkit-scrollbar { width: 4px; }
-.bm-folder-list::-webkit-scrollbar-thumb { background: rgba(var(--ink), 0.2); border-radius: 2px; }
-.bm-folder-item { padding: 10px 12px; border-radius: 6px; font-size: 13px; color: var(--text-muted); cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 10px; }
-.bm-folder-item:hover { background: rgba(var(--ink), 0.05); color: var(--text-strong); }
-.bm-folder-item.selected { background: rgba(37, 194, 160, 0.15); color: #25C2A0; font-weight: bold; }
-.bm-folder-item svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; pointer-events: none;}
-
-.bm-popup-actions { display: flex; justify-content: space-between; margin-top: 12px; gap: 12px;}
-.bm-btn { padding: 10px; border-radius: 8px; font-size: 13px; cursor: pointer; transition: 0.2s; font-weight: 600; text-align: center; flex: 1; }
-.bm-btn.remove { color: #E81123; border: 1px solid rgba(232, 17, 35, 0.3); background: transparent; }
-.bm-btn.remove:hover { background: rgba(232, 17, 35, 0.15); border-color: #E81123;}
-.bm-btn.done { background: var(--theme-base); color: #fff; border: 1px solid var(--theme-base);}
-.bm-btn.done:hover { background: var(--theme-light); color: #000; border-color: var(--theme-light);}
+.bookmark-popup.show { opacity: 1; transform: none; pointer-events: auto; }
+.bmp-head { display: flex; align-items: center; gap: 10px; }
+.bmp-icon { width: 32px; height: 32px; border-radius: 9px; background: rgba(var(--ink), 0.06); display: grid; place-items: center; flex-shrink: 0; }
+.bmp-icon .favicon { margin-right: 0; }
+.bmp-headtext { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bmp-headtext b { font-size: 13.5px; font-weight: 600; color: var(--text-strong); }
+.bmp-headtext span { font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bmp-close { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: var(--text-muted); cursor: pointer; flex-shrink: 0; }
+.bmp-close:hover { background: rgba(var(--ink), 0.08); color: var(--text-primary); }
+.bmp-field { display: flex; flex-direction: column; gap: 6px; }
+.bmp-field > span { font-size: 11.5px; color: var(--text-muted); }
+.bm-popup-input { width: 100%; height: 36px; padding: 0 11px; border-radius: 9px; border: 1px solid rgba(var(--ink), 0.12); background: rgba(var(--ink), 0.04);
+  color: var(--text-strong); font-size: 13.5px; outline: none; transition: border-color 0.15s, box-shadow 0.15s; user-select: text; }
+.bm-popup-input:focus { border-color: color-mix(in srgb, var(--theme-light) 60%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-light) 18%, transparent); }
+/* フォルダは横に並ぶ小さなボタン（選んだものに色） */
+.bm-folder-list { display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; }
+.bm-folder-item { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border-radius: 15px; font-size: 12.5px; cursor: pointer;
+  color: var(--text-primary); border: 1px solid rgba(var(--ink), 0.12); background: transparent; transition: background 0.15s, border-color 0.15s; }
+.bm-folder-item:hover { background: rgba(var(--ink), 0.06); }
+.bm-folder-item.selected { background: color-mix(in srgb, var(--theme-light) 20%, transparent); border-color: color-mix(in srgb, var(--theme-light) 55%, transparent); color: var(--text-strong); font-weight: 600; }
+.bm-folder-item svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; pointer-events: none; }
+.bm-folder-item.new { color: var(--text-muted); border-style: dashed; }
+.bm-popup-actions { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.bmp-spacer { flex: 1; }
+.bmp-delete { font-size: 12.5px; color: #E5484D; cursor: pointer; padding: 6px 8px; border-radius: 8px; }
+.bmp-delete:hover { background: rgba(229, 72, 77, 0.12); }
+.bm-btn { height: 34px; padding: 0 14px; display: inline-flex; align-items: center; border-radius: 9px; font-size: 13px; cursor: pointer; font-weight: 500;
+  color: var(--text-primary); border: 1px solid rgba(var(--ink), 0.14); background: transparent; transition: background 0.15s; }
+.bm-btn:hover { background: rgba(var(--ink), 0.06); }
+.bm-btn.done { background: var(--theme-base); color: #fff; border-color: var(--theme-base); font-weight: 600; }
+.bm-btn.done:hover { background: color-mix(in srgb, var(--theme-base) 82%, #fff); }
 
 /* ▼ 追加：タイトルのスクロール（マーキー）アニメーション */
 .track-name-wrapper { overflow: hidden; width: 100%; position: relative; }
@@ -1135,7 +1142,7 @@ body.fx-tab-motion .ts-tab { transition: background 0.15s, color 0.15s, flex-bas
    色の大部分は変数（--ink・--text-*・--bg-popover）で切り替わるので、ここは個別の調整だけ
    ========================================================================== */
 html.theme-light .app-wrapper { border-color: rgba(0, 0, 0, 0.14); }
-html.theme-light .lyrics-input, html.theme-light .bm-popup-input, html.theme-light .bm-folder-list, html.theme-light .lyrics-alts,
+html.theme-light .lyrics-input, html.theme-light .lyrics-alts,
 html.theme-light .sp-scope, html.theme-light .lye-meta input, html.theme-light #lye-textarea, html.theme-light .lye-lines,
 html.theme-light .lye-btn.record kbd { background: rgba(0, 0, 0, 0.045); }
 html.theme-light .bookmark-overlay { background: rgba(0, 0, 0, 0.25); }
@@ -1266,3 +1273,6 @@ body.opaque-window .command-header-area, body.opaque-window .command-header { -w
 body.opaque-window .ts-tab, body.opaque-window .ts-group, body.opaque-window .ts-new,
 body.opaque-window .window-controls, body.opaque-window .browser-toolbar,
 body.opaque-window .command-header-area *:not(.command-header), body.opaque-window .tabstrip button { -webkit-app-region: no-drag; }
+/* 掴める範囲を作り直す一瞬だけ外す（renderer/core.js の refreshDragRegions） */
+body.opaque-window.drag-refresh .tabstrip, body.opaque-window.drag-refresh .header-drag-area,
+body.opaque-window.drag-refresh .command-header-area, body.opaque-window.drag-refresh .command-header { -webkit-app-region: no-drag; }

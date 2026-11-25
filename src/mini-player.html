@@ -32,10 +32,10 @@
   @keyframes eq { 0%, 100% { height: 6px; } 50% { height: 24px; } }
   .meta { flex: 1; min-width: 0; }
   .title-wrap { overflow: hidden; }
-  .title { display: inline-block; white-space: nowrap; font-size: 14px; font-weight: 700; }
+  .title { display: inline-block; white-space: nowrap; font-size: calc(14px * var(--fs-top, 1)); font-weight: 700; }
   .title.scrolling { animation: marquee 14s linear infinite; }
   @keyframes marquee { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--scroll-dist)); } }
-  .artist { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+  .artist { font-size: calc(12px * var(--fs-top, 1)); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
   .src { display: flex; align-items: center; gap: 6px; margin-top: 4px; min-width: 0; }
   .chip { height: 20px; padding: 0 8px; border-radius: 7px; font-size: 10.5px; color: var(--muted); background: rgba(255,255,255,0.06); gap: 5px; min-width: 0; }
   .chip:hover { color: #fff; background: rgba(255,255,255,0.12); }
@@ -47,7 +47,7 @@
   .icon-btn.close:hover { background: rgba(232,17,35,0.2); color: #ff8a8a; }
 
   /* 進捗バー */
-  .mp-progress { display: flex; align-items: center; gap: 10px; padding: 3px 14px 0; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .mp-progress { display: flex; align-items: center; gap: 10px; padding: 3px 14px 0; font-size: calc(10.5px * var(--fs-top, 1)); color: var(--muted); font-variant-numeric: tabular-nums; }
   .mp-progress span { width: 34px; } .mp-progress span:last-child { text-align: right; }
   .bar { flex: 1; height: 16px; display: flex; align-items: center; cursor: pointer; }
   .bar-track { width: 100%; height: 4px; border-radius: 2px; background: rgba(255,255,255,0.12); position: relative; transition: height 0.15s; }
@@ -73,7 +73,7 @@
   /* 歌詞（再生部分の下に並べる。重ねない） */
   .mp-lyrics { flex: 1; min-height: 0; display: none; flex-direction: column; border-top: 1px solid var(--line); padding: 10px 14px 12px; }
   .expanded .mp-lyrics { display: flex; }
-  .ly-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; }
+  .ly-head { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; row-gap: 6px; }
   .ly-head b { font-size: 11px; letter-spacing: 0.14em; color: var(--muted); margin-right: auto; }
   .pill { height: 30px; padding: 0 11px; border-radius: 9px; gap: 6px; font-size: 12px; font-weight: 600; background: rgba(255,255,255,0.07); border: 1px solid var(--line); }
   .pill:hover { background: rgba(255,255,255,0.14); }
@@ -91,7 +91,7 @@
   .edit-form input { height: 32px; border-radius: 9px; border: 1px solid var(--line); background: rgba(0,0,0,0.3); color: #fff; padding: 0 10px; font-size: 12px; outline: none; user-select: text; }
   .edit-form input:focus { border-color: var(--accent); }
   .edit-form .pill { justify-content: center; background: color-mix(in srgb, var(--accent) 30%, transparent); }
-  .lyrics-text { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; text-align: center; font-size: 13px; line-height: 2; color: #e8e8e8; white-space: pre-wrap; padding: 0 4px;
+  .lyrics-text { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; text-align: center; font-size: calc(13px * var(--fs, 1)); line-height: 2; color: #e8e8e8; white-space: pre-wrap; padding: 0 4px;
     -webkit-mask-image: linear-gradient(transparent, #000 8%, #000 92%, transparent); }
   .lyrics-text::-webkit-scrollbar { width: 4px; }
   .lyrics-text::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
@@ -112,6 +112,9 @@
   .resize-grip { position: fixed; right: 3px; bottom: 3px; width: 16px; height: 16px; cursor: nwse-resize; z-index: 5; opacity: 0.45; border-radius: 0 0 18px 0;
     background: linear-gradient(135deg, transparent 50%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0.5) 58%, transparent 58%, transparent 70%, rgba(255,255,255,0.5) 70%, rgba(255,255,255,0.5) 78%, transparent 78%); }
   .resize-grip:hover { opacity: 0.9; }
+  /* ▼ 追加：歌詞の文字の大きさ（A− / A＋。ウィンドウを大きくすると文字も大きくなる） */
+  .pill.fs { min-width: 34px; padding: 0 8px; justify-content: center; font-size: 12px; }
+  .fs-val { font-size: 10.5px; color: var(--muted); min-width: 34px; text-align: center; font-variant-numeric: tabular-nums; }
   .resize-edge { position: fixed; right: 0; top: 24px; bottom: 24px; width: 6px; cursor: ew-resize; z-index: 4; }
   .mp:not(.expanded) .resize-grip { cursor: ew-resize; }
 </style>
@@ -156,6 +159,9 @@
   <div class="mp-lyrics" id="lyrics-drawer">
     <div class="ly-head">
       <b>LYRICS</b>
+      <button class="pill fs" id="btn-fs-down" title="歌詞の文字を小さく">A−</button>
+      <span class="fs-val" id="fs-val" title="クリックで元の大きさに">100%</span>
+      <button class="pill fs" id="btn-fs-up" title="歌詞の文字を大きく">A＋</button>
       <button class="pill" id="btn-refresh-lyrics" title="この曲の歌詞を検索し直す"><svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>再検索</button>
       <button class="pill" id="btn-edit-lyrics-toggle" title="曲名・アーティストを入力して検索"><svg viewBox="0 0 24 24"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>編集</button>
     </div>

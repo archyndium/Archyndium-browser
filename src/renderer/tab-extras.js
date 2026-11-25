@@ -107,6 +107,7 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
         { id: 'new-window', label: '新しいウィンドウに移動' },
         { id: 'workspace', label: 'Work / Focus に登録', enabled: /^https?:/i.test(url) },
         { type: 'separator' },
+        { id: 'bookmark', label: findBookmarkCard(url) ? 'ブックマークを編集…' : 'ブックマークに追加…', enabled: /^(https?|file):/i.test(url) },
         { id: 'copy', label: 'URL をコピー' },
         { id: 'unlock-copy', label: 'このサイトのコピー制限を解除' },
         { id: 'extract-text', label: 'ページの文字を取り出す' },
@@ -138,6 +139,7 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
         case 'workspace': addTabToWorkspace(card); showToast('Work / Focus に登録しました'); break;
         case 'player': (mediaLocked && mediaTargetTabId === tabId) ? toggleMediaLock() : setMediaTarget(tabId, { lock: true }); break;
         case 'copy': navigator.clipboard.writeText(url).catch(() => {}); break;
+        case 'bookmark': openBookmarkPopupForTab(tabId); break;
         case 'unlock-copy': unlockCopy(tabId); break;
         case 'extract-text': extractPageText(tabId); break;
         case 'private': openNewTab(url, { isPrivate: true }); break;

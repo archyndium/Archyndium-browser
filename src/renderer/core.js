@@ -63,6 +63,26 @@ document.addEventListener('error', (e) => {
 //   最大化中に掴んで動かすと元の大きさに戻る・画面の上端や左右に寄せると拡大表示（スナップ）が出る、など
 //   Windows と同じ動きになる。アプリ自身で動かす処理（window-drag.js）は、透明なウィンドウの時だけ使う
 //   （透明なウィンドウでは、標準の移動だと操作の後に掴めなくなることがあったため）
+// ▼ 修正：パネルの開閉などで画面の並びが変わっても、Windows 側の「掴める範囲」が古いまま残り、
+//   掴めない場所ができることがあった。並びが変わったら、掴める範囲をいったん外して付け直す（作り直させる）
+function refreshDragRegions() {
+  if (!document.body.classList.contains('opaque-window')) return;
+  document.body.classList.add('drag-refresh');
+  requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove('drag-refresh')));
+}
+if (document.body.classList.contains('opaque-window')) {
+  let lastLayoutClass = '';
+  const layoutKey = () => ['panel-open', 'layout-top', 'app-fullscreen', 'window-maximized'].filter(c => document.body.classList.contains(c)).join(' ');
+  new MutationObserver(() => {
+    const k = layoutKey();
+    if (k === lastLayoutClass) return;
+    lastLayoutClass = k;
+    refreshDragRegions();
+    setTimeout(refreshDragRegions, 380);   // パネルの開閉のアニメーション（0.3 秒）が終わった後にも
+  }).observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  window.addEventListener('resize', () => { clearTimeout(window.__dragRegionTimer); window.__dragRegionTimer = setTimeout(refreshDragRegions, 150); });
+  document.addEventListener('transitionend', (e) => { if (e.target.id === 'command-center') refreshDragRegions(); });
+}
 if (!document.body.classList.contains('opaque-window')) {
   setupWindowDrag({ handles: '.header-drag-area, .command-header, .command-header-area, .ts-drag, .tabstrip', maximizeOnDoubleClick: true });
 }

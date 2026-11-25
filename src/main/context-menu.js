@@ -36,6 +36,7 @@ function attach(contents) {
         { label: 'リンクを新しいタブで開く', click: () => openTab(params.linkURL) },
         { label: 'リンクをシークレットタブで開く', click: () => openTab(params.linkURL, { isPrivate: true }) },
         { label: 'リンクのアドレスをコピー', click: () => clipboard.writeText(params.linkURL) },
+        { label: 'リンクをブックマークに追加…', click: () => windows.sendTo(win, 'page-action', { action: 'bookmark-link', url: params.linkURL, title: (params.linkText || '').trim(), webContentsId: contents.id }) },
         sep,
       );
     }
@@ -94,6 +95,7 @@ function attach(contents) {
         { label: '再読み込み', click: () => contents.reload() },
         sep,
         { label: '印刷…', click: () => contents.print() },
+        { label: 'このページをブックマークに追加…', click: () => windows.sendTo(win, 'page-action', { action: 'bookmark-page', webContentsId: contents.id }) },
         { label: 'ページのアドレスをコピー', click: () => clipboard.writeText(contents.getURL()) },
         sep,
       );
@@ -116,11 +118,15 @@ function attach(contents) {
 function init() {
   ipcMain.handle('popup-menu', (event, items) => new Promise((resolve) => {
     // クリック時に resolve。何も選ばずに閉じた時は少し待ってから null（click より先に閉じる通知が来る環境があるため）
-    const template = items.map(it => (it.type === 'separator' ? { type: 'separator' } : {
+    // ▼ 追加：submenu（入れ子のメニュー）にも対応。例：「フォルダに移動 ▸」
+    const build = (list) => list.map(it => (it.type === 'separator' ? { type: 'separator' } : it.submenu ? {
+      label: it.label, enabled: it.enabled !== false, submenu: build(it.submenu),
+    } : {
       label: it.label, enabled: it.enabled !== false,
       type: it.checked !== undefined ? 'checkbox' : 'normal', checked: !!it.checked,
       click: () => resolve(it.id),
     }));
+    const template = build(Array.isArray(items) ? items : []);
     Menu.buildFromTemplate(template).popup({ window: BrowserWindow.fromWebContents(event.sender), callback: () => setTimeout(() => resolve(null), 150) });
   }));
 }

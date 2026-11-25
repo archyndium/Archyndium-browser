@@ -144,97 +144,241 @@ bookmarksList.addEventListener('auxclick', (e) => {
     if (card && e.button === 1) { e.preventDefault(); openNewTab(card.getAttribute('data-url'), { background: true }); }
 });
 
+// ▼ 追加：新しいフォルダを作る（+ Folder ボタンと同じ）
+function createBookmarkFolder(name = 'New Folder') {
+    document.getElementById('btn-new-bm-folder').click();
+    const folders = document.querySelectorAll('#bookmarks-list .bm-folder');
+    const folder = folders[folders.length - 1];
+    if (folder) {
+        folder.querySelector('.group-title').textContent = name;
+        // 同じ瞬間に続けて作ると ID が重なることがあるので、必ず別の ID にする
+        folder.querySelector('.bm-list').id = 'bm-folder-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7);
+    }
+    return folder;
+}
+async function renameBookmarkFolder(folder) {
+    const values = await showForm({ title: 'フォルダの名前を変更', fields: [{ key: 'name', label: '名前', value: folder.querySelector('.group-title').textContent }] });
+    if (values && values.name.trim()) { folder.querySelector('.group-title').textContent = values.name.trim(); saveBookmarks(); }
+}
+// 表示中のページを、指定したフォルダ（省略時は最初のフォルダ）に追加する
+function addActivePageToFolder(folder) {
+    const card = activeTabId && getTabCard(activeTabId);
+    const url = card?.getAttribute('data-url') || '';
+    if (!/^(https?|file):/i.test(url)) { showToast('このページはブックマークできません'); return; }
+    if (findBookmarkCard(url)) { showToast('このページはブックマーク済みです'); return; }
+    const list = (folder || document.querySelector('#bookmarks-list .bm-folder'))?.querySelector('.bm-list');
+    if (!list) return;
+    list.appendChild(createBookmarkCard({ url, title: card.querySelector('.tab-title')?.textContent || url, favicon: card.querySelector('.favicon img')?.getAttribute('src') || '' }));
+    saveBookmarks(); refreshBookmarkStar();
+    showToast('ブックマークに追加しました');
+}
+
+// ▼ 追加：フォルダの見出し・何もない所の右クリック（ページの追加・フォルダの操作）
+bookmarksList.addEventListener('contextmenu', async (e) => {
+    if (e.target.closest('.bookmark-item') || !window.electronAPI?.popupMenu) return;
+    e.preventDefault();
+    const folder = e.target.closest('.bm-folder');
+    const pageUrl = (activeTabId && getTabCard(activeTabId)?.getAttribute('data-url')) || '';
+    const canAdd = /^(https?|file):/i.test(pageUrl) && !findBookmarkCard(pageUrl);
+    const items = folder ? [
+        { id: 'add-here', label: '表示中のページをこのフォルダに追加', enabled: canAdd },
+        { type: 'separator' },
+        { id: 'rename', label: 'フォルダの名前を変更…' },
+        { id: 'new-folder', label: '新しいフォルダ' },
+        { type: 'separator' },
+        { id: 'delete-folder', label: 'フォルダを削除', enabled: document.querySelectorAll('#bookmarks-list .bm-folder').length > 1 },
+    ] : [
+        { id: 'add', label: '表示中のページをブックマークに追加…', enabled: canAdd },
+        { id: 'new-folder', label: '新しいフォルダ' },
+    ];
+    const choice = await window.electronAPI.popupMenu(items);
+    if (choice === 'add-here') addActivePageToFolder(folder);
+    else if (choice === 'add') openBookmarkPopupForTab(activeTabId);
+    else if (choice === 'rename') renameBookmarkFolder(folder);
+    else if (choice === 'new-folder') { const f = createBookmarkFolder(); if (f) renameBookmarkFolder(f); }
+    else if (choice === 'delete-folder') {
+        const n = folder.querySelectorAll('.bookmark-item').length;
+        const { ok } = await showConfirm({ title: 'フォルダを削除', message: n ? `中のブックマーク ${n} 件も削除されます。` : '空のフォルダを削除します。', confirmLabel: '削除', danger: true });
+        if (ok) { folder.remove(); saveBookmarks(); refreshBookmarkStar(); }
+    }
+});
+
 bookmarksList.addEventListener('contextmenu', async (e) => {
     const card = e.target.closest('.bookmark-item');
     if (!card || !window.electronAPI?.popupMenu) return;
     e.preventDefault();
     const url = card.getAttribute('data-url');
+    // ▼ 変更：項目を増やした（裏で開く・分割表示・フォルダに移動・並べ替え・ブックマークの小窓で編集）
+    const folders = [...document.querySelectorAll('#bookmarks-list .bm-folder')];
+    const here = card.closest('.bm-folder');
     const choice = await window.electronAPI.popupMenu([
         { id: 'open', label: '開く' },
         { id: 'new-tab', label: '新しいタブで開く' },
+        { id: 'bg-tab', label: '裏の新しいタブで開く' },
         { id: 'private', label: 'シークレットタブで開く' },
+        { id: 'split', label: '表示中のタブと左右に並べて開く', enabled: !!activeTabId },
         { type: 'separator' },
+        { id: 'edit-popup', label: '名前とフォルダを編集…' },
         { id: 'edit', label: '名前と URL を編集…' },
+        { label: 'フォルダに移動', enabled: folders.length > 1, submenu: folders.map((f, i) => ({ id: 'move:' + i, label: f.querySelector('.group-title').textContent, enabled: f !== here })) },
+        { id: 'up', label: '上へ移動', enabled: !!card.previousElementSibling },
+        { id: 'down', label: '下へ移動', enabled: !!card.nextElementSibling },
+        { type: 'separator' },
         { id: 'copy', label: 'URL をコピー' },
+        { id: 'copy-md', label: 'タイトルと URL をコピー' },
         { type: 'separator' },
         { id: 'delete', label: '削除' },
     ]);
+    const title = card.querySelector('.tab-title').textContent;
     if (choice === 'open') navigateActiveTab(url);
     else if (choice === 'new-tab') openNewTab(url);
+    else if (choice === 'bg-tab') openNewTab(url, { background: true });
     else if (choice === 'private') openNewTab(url, { isPrivate: true });
+    else if (choice === 'split') { const base = activeTabId; const t = await openNewTab(url, { background: true }); if (t && typeof startSplit === 'function') startSplit(base, t.getAttribute('data-tab-id'), 'h'); }
+    else if (choice === 'edit-popup') openBookmarkPopup({ url, title });
     else if (choice === 'edit') editBookmark(card);
+    else if (choice && choice.startsWith('move:')) { folders[+choice.slice(5)]?.querySelector('.bm-list').appendChild(card); saveBookmarks(); }
+    else if (choice === 'up') { card.previousElementSibling?.before(card); saveBookmarks(); }
+    else if (choice === 'down') { card.nextElementSibling?.after(card); saveBookmarks(); }
     else if (choice === 'copy') navigator.clipboard.writeText(url).catch(() => {});
-    else if (choice === 'delete') { card.remove(); refreshBookmarkStar(); }
+    else if (choice === 'copy-md') navigator.clipboard.writeText(`${title}\n${url}`).catch(() => {});
+    else if (choice === 'delete') { card.remove(); refreshBookmarkStar(); showToast('ブックマークを削除しました'); }
 });
 
 const btnBookmark = document.getElementById('btn-bookmark');
-let pendingBookmarkFavicon = '';
 
-btnBookmark.addEventListener('click', async (e) => {
-  e.stopPropagation(); 
-  if(!activeTabId) return;
-  
-  // ▼ 修正：URL バーの文字ではなく、表示中のタブの URL・タイトル・アイコンを使う
-  //   （以前は音楽の再生中だと、ページ名ではなく曲名がブックマーク名になっていた）
-  const tabCard = getTabCard(activeTabId);
-  const currentUrl = tabCard?.getAttribute('data-url') || urlInput.value;
-  const currentTitle = tabCard?.querySelector('.tab-title')?.textContent || currentUrl;
-  pendingBookmarkFavicon = tabCard?.querySelector('.favicon img')?.getAttribute('src') || '';
-  
-  const isCurrentlyBookmarked = btnBookmark.classList.contains('active-star');
-  
-  btnBookmark.style.transform = 'scale(1.2)'; 
-  setTimeout(() => btnBookmark.style.transform = 'scale(1)', 200);
-  
-  if (!isCurrentlyBookmarked) {
+// ▼ 変更：ブックマークの追加・編集の小窓を、表示中のタブ以外（右クリックしたタブ・リンク）にも使えるようにした。
+//   すでにブックマークしてあるページなら「編集」になり、名前・フォルダの変更と削除ができる
+//   （以前は ★ を押すと確認なしで削除されていた）
+let pendingBookmark = null;   // { url, favicon, existing: 既存のカード | null }
+const findBookmarkCard = (url) => document.querySelector(`#bookmarks-list .bookmark-item[data-url="${CSS.escape(url || '')}"]`);
+
+function bmFolderChip(folder, selected) {
+    const item = document.createElement('div');
+    item.className = 'bm-folder-item' + (selected ? ' selected' : '');
+    item.setAttribute('data-target-id', folder.querySelector('.bm-list').id);
+    item.innerHTML = `<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span></span>`;
+    item.querySelector('span').textContent = folder.querySelector('.group-title').textContent;
+    return item;
+}
+function renderBmFolderChips(selectedId) {
+    const listEl = document.getElementById('bm-folder-list');
+    listEl.innerHTML = '';
+    const folders = [...document.querySelectorAll('#bookmarks-list .bm-folder')];
+    folders.forEach((f, i) => listEl.appendChild(bmFolderChip(f, selectedId ? f.querySelector('.bm-list').id === selectedId : i === 0)));
+    const add = document.createElement('div');
+    add.className = 'bm-folder-item new';
+    add.textContent = '＋ 新しいフォルダ';
+    add.setAttribute('data-new-folder', '1');
+    listEl.appendChild(add);
+}
+document.getElementById('bm-folder-list').addEventListener('click', async (e) => {
+    const chip = e.target.closest('.bm-folder-item');
+    if (!chip) return;
+    if (chip.hasAttribute('data-new-folder')) {
+        const values = await showForm({ title: '新しいフォルダ', fields: [{ key: 'name', label: '名前', value: '' }], confirmLabel: '作成' });
+        if (!values || !values.name.trim()) return;
+        const folder = createBookmarkFolder(values.name.trim());
+        if (folder) renderBmFolderChips(folder.querySelector('.bm-list').id);
+        return;
+    }
+    document.querySelectorAll('.bm-folder-item').forEach(el => el.classList.remove('selected'));
+    chip.classList.add('selected');
+});
+
+// ★ ボタンが見えていればその下、無ければ画面の上の中央に出す
+function positionBookmarkPopup() {
+    const pop = document.getElementById('bookmark-popup');
+    const r = btnBookmark.getBoundingClientRect();
+    const w = pop.offsetWidth || 340;
+    if (r.width && r.bottom > 0) {
+        pop.style.left = `${Math.max(12, Math.min(innerWidth - w - 12, r.right - w + 8))}px`;
+        pop.style.top = `${r.bottom + 10}px`;
+    } else {
+        pop.style.left = `${Math.max(12, (innerWidth - w) / 2)}px`;
+        pop.style.top = '72px';
+    }
+}
+
+function openBookmarkPopup({ url, title = '', favicon = '' }) {
+    if (!/^(https?|file):/i.test(url || '')) { showToast('このページはブックマークできません'); return; }
+    const existing = findBookmarkCard(url);
+    pendingBookmark = { url, favicon, existing };
+    document.getElementById('bm-popup-title').textContent = existing ? 'ブックマークを編集' : 'ブックマークに追加';
+    document.getElementById('bm-popup-url').textContent = url.replace(/^https?:\/\/(www\.)?/, '');
+    document.getElementById('bm-popup-icon').innerHTML = siteIconHtml(url, favicon || existing?.getAttribute('data-favicon') || '');
+    document.getElementById('bm-input-name').value = existing ? existing.querySelector('.tab-title').textContent : (title || url);
+    document.getElementById('bm-btn-remove').style.display = existing ? '' : 'none';
+    document.getElementById('bm-btn-done').textContent = existing ? '完了' : '保存';
+    renderBmFolderChips(existing?.closest('.bm-list')?.id);
     document.getElementById('bm-overlay').classList.add('show');
-    document.getElementById('bookmark-popup').classList.add('show');
-    document.getElementById('bm-input-name').value = currentTitle;
-    document.getElementById('bm-btn-remove').textContent = 'Cancel';
-    
-    const folderListEl = document.getElementById('bm-folder-list');
-    folderListEl.innerHTML = '';
-    document.querySelectorAll('#bookmarks-list .bm-folder').forEach((folder, idx) => {
-        const folderName = folder.querySelector('.group-title').textContent;
-        const folderId = folder.querySelector('.bm-list').id;
-        
-        const item = document.createElement('div');
-        item.className = 'bm-folder-item' + (idx === 0 ? ' selected' : '');
-        item.setAttribute('data-target-id', folderId);
-        item.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg> ${escapeHtml(folderName)}`;
-        
-        item.onclick = () => {
-            document.querySelectorAll('.bm-folder-item').forEach(el => el.classList.remove('selected'));
-            item.classList.add('selected');
-        };
-        folderListEl.appendChild(item);
+    const pop = document.getElementById('bookmark-popup');
+    pop.classList.add('show');
+    positionBookmarkPopup();
+    setTimeout(() => { const n = document.getElementById('bm-input-name'); n.focus(); n.select(); }, 50);
+}
+window.addEventListener('resize', () => { if (document.getElementById('bookmark-popup').classList.contains('show')) positionBookmarkPopup(); });
+
+// タブ（またはタブのカード）からブックマークの小窓を開く
+function openBookmarkPopupForTab(tabId) {
+    const card = getTabCard(tabId);
+    if (!card) return;
+    openBookmarkPopup({
+        url: card.getAttribute('data-url') || '',
+        title: card.querySelector('.tab-title')?.textContent || '',
+        favicon: card.querySelector('.favicon img')?.getAttribute('src') || '',
     });
-  } else {
-    btnBookmark.classList.remove('active-star');
-    const itemToRemove = document.querySelector(`.bookmark-item[data-url="${CSS.escape(currentUrl)}"]`); 
-    if(itemToRemove) itemToRemove.remove();
-  }
+}
+
+btnBookmark.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!activeTabId) return;
+    btnBookmark.style.transform = 'scale(1.2)';
+    setTimeout(() => btnBookmark.style.transform = 'scale(1)', 200);
+    openBookmarkPopupForTab(activeTabId);
 });
 
 function closeBmPopup() {
     document.getElementById('bm-overlay').classList.remove('show');
     document.getElementById('bookmark-popup').classList.remove('show');
+    pendingBookmark = null;
 }
 document.getElementById('bm-overlay').addEventListener('click', closeBmPopup);
-document.getElementById('bm-btn-remove').addEventListener('click', closeBmPopup);
+document.getElementById('bm-btn-cancel').addEventListener('click', closeBmPopup);
+document.getElementById('bm-popup-close').addEventListener('click', closeBmPopup);
+document.getElementById('bm-btn-remove').addEventListener('click', () => {
+    if (pendingBookmark?.existing) { pendingBookmark.existing.remove(); showToast('ブックマークを削除しました'); }
+    closeBmPopup();
+    refreshBookmarkStar();
+});
+document.getElementById('bm-input-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('bm-btn-done').click();
+    if (e.key === 'Escape') closeBmPopup();
+});
 
 document.getElementById('bm-btn-done').addEventListener('click', () => {
-    const tabCard = getTabCard(activeTabId);
-    const currentUrl = tabCard?.getAttribute('data-url') || urlInput.value;
-    const name = document.getElementById('bm-input-name').value || currentUrl;
+    if (!pendingBookmark) { closeBmPopup(); return; }
+    const { url, favicon, existing } = pendingBookmark;
+    const name = document.getElementById('bm-input-name').value.trim() || url;
     const selected = document.querySelector('.bm-folder-item.selected');
-    
-    if (selected) {
-        const targetFolder = document.getElementById(selected.getAttribute('data-target-id'));
-        if (targetFolder && !document.querySelector(`.bookmark-item[data-url="${CSS.escape(currentUrl)}"]`)) {
-            targetFolder.appendChild(createBookmarkCard({ url: currentUrl, title: name, favicon: pendingBookmarkFavicon }));
-            document.getElementById('btn-bookmark').classList.add('active-star');
-        }
+    const targetFolder = selected && document.getElementById(selected.getAttribute('data-target-id'));
+    if (existing) {
+        existing.querySelector('.tab-title').textContent = name;
+        if (targetFolder && existing.closest('.bm-list') !== targetFolder) targetFolder.appendChild(existing);
+    } else if (targetFolder && !findBookmarkCard(url)) {
+        targetFolder.appendChild(createBookmarkCard({ url, title: name, favicon }));
+        showToast(`「${name.length > 24 ? name.slice(0, 24) + '…' : name}」をブックマークしました`);
     }
+    saveBookmarks();
     closeBmPopup();
+    refreshBookmarkStar();
 });
+
+// ▼ 追加：ページの右クリックメニュー（main/context-menu.js）からのブックマーク
+window.electronAPI?.onPageAction?.(({ action, webContentsId, url, title }) => {
+    if (action !== 'bookmark-page' && action !== 'bookmark-link') return;
+    const tabId = Object.keys(webviews).find(id => { try { return webviews[id].getWebContentsId() === webContentsId; } catch (e) { return false; } }) || activeTabId;
+    if (action === 'bookmark-page') openBookmarkPopupForTab(tabId);
+    else openBookmarkPopup({ url, title: title || url });
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.getElementById('bookmark-popup').classList.contains('show')) closeBmPopup(); });

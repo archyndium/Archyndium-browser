@@ -183,4 +183,26 @@ function startResize(e, widthOnly) {
 }
 $('resize-grip').addEventListener('pointerdown', (e) => startResize(e, false));
 $('resize-edge').addEventListener('pointerdown', (e) => startResize(e, true));
-window.addEventListener('resize', () => updateMarquee());
+// ---- ▼ 追加：文字の大きさ。ウィンドウの幅に合わせて大きくなり（最大 1.6 倍）、A− / A＋ で歌詞の文字をさらに調整できる ----
+const FS_KEY = 'archyndium_mini_text_scale';
+let textScale = (() => { try { return parseFloat(localStorage.getItem(FS_KEY)) || 1; } catch (e) { return 1; } })();
+function applyTextScale() {
+  const auto = Math.max(1, Math.min(1.6, window.innerWidth / 360));
+  const root = document.documentElement.style;
+  root.setProperty('--fs', (auto * textScale).toFixed(3));                       // 歌詞
+  root.setProperty('--fs-top', Math.min(1.35, auto).toFixed(3));                // 曲名・アーティスト（上段の高さに収まる範囲で）
+  $('fs-val').textContent = Math.round(textScale * 100) + '%';
+  updateMarquee();
+}
+function setTextScale(v) {
+  textScale = Math.round(Math.max(0.8, Math.min(1.8, v)) * 10) / 10;
+  try { localStorage.setItem(FS_KEY, String(textScale)); } catch (e) {}
+  applyTextScale();
+}
+$('btn-fs-down').addEventListener('click', () => setTextScale(textScale - 0.1));
+$('btn-fs-up').addEventListener('click', () => setTextScale(textScale + 0.1));
+$('fs-val').addEventListener('click', () => setTextScale(1));
+// 歌詞欄で Ctrl + ホイールでも変えられる
+$('lyrics-content').addEventListener('wheel', (e) => { if (!e.ctrlKey) return; e.preventDefault(); setTextScale(textScale + (e.deltaY < 0 ? 0.1 : -0.1)); }, { passive: false });
+window.addEventListener('resize', applyTextScale);
+applyTextScale();
