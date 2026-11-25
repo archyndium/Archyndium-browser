@@ -91,6 +91,8 @@ function renderTabstrip() {
         else if (b > tsTabsEl.scrollLeft + tsTabsEl.clientWidth) tsTabsEl.scrollLeft = b - tsTabsEl.clientWidth + 8;
     }
     requestAnimationFrame(() => FX.emit('tabs-changed'));
+    // ▼ 修正：タブの数や幅が変わると、ウィンドウを掴める範囲がずれて残ることがあった（右上のボタンの左側など）
+    if (typeof refreshDragRegions === 'function') { refreshDragRegions(); setTimeout(refreshDragRegions, 300); }
 }
 function queueTabstrip() { if (!tsRenderQueued) { tsRenderQueued = true; requestAnimationFrame(renderTabstrip); } }
 
@@ -129,7 +131,17 @@ tsTabsEl.addEventListener('pointermove', (e) => {
         d.el.classList.add('ts-dragging');
         d.lastX = e.clientX; d.lastT = performance.now();
     }
-    d.el.style.transform = `translateX(${dx}px)`;
+    // ▼ 変更：タブバーから大きく離れた（ウィンドウの外・下へ引き出した）ら「切り離し」の見た目にし、並べ替えはしない。
+    //   離すと、別のウィンドウの上ならそのウィンドウへ、何も無い所なら新しいウィンドウになる
+    const stripRect = tabstripEl.getBoundingClientRect();
+    const detached = e.clientY < -12 || e.clientY > stripRect.bottom + 56 || e.clientX < -12 || e.clientX > innerWidth + 12;
+    d.el.classList.toggle('ts-detach', detached);
+    // タブはタブバーの中だけで動かす（画面の外まで飛んで、表示が崩れて見えないように）
+    const tr = tsTabsEl.getBoundingClientRect(), er = d.el.getBoundingClientRect();
+    const baseLeft = er.left - (parseFloat((d.el.style.transform.match(/translateX\((-?[\d.]+)/) || [0, 0])[1]) || 0);
+    const clampedDx = Math.max(tr.left - baseLeft, Math.min(tr.right - er.width - baseLeft, dx));
+    d.el.style.transform = detached ? 'translateY(4px)' : `translateX(${clampedDx}px)`;   // 引き出し中は元の場所で薄く表示
+    if (detached) { d.lastX = e.clientX; d.lastT = performance.now(); return; }
     const now = performance.now(), vx = (e.clientX - d.lastX) / Math.max(8, now - d.lastT) * 1000;
     d.lastX = e.clientX; d.lastT = now;
     FX.emit('tab-drag-move', { id: d.id, vx });
@@ -142,6 +154,7 @@ tsTabsEl.addEventListener('pointermove', (e) => {
     if (before && before.previousElementSibling !== d.el && before !== d.el.nextElementSibling) before.before(d.el);
     else if (!before && sibs.length && sibs[sibs.length - 1].nextElementSibling !== d.el) sibs[sibs.length - 1].after(d.el);
     else return;
+    try { d.el.setPointerCapture(d.pointerId); } catch (err) {}   // 並べ替えで要素を動かすとキャプチャが外れるので付け直す
     const newLeft = d.el.getBoundingClientRect().left - dx;
     d.x0 += newLeft - oldLeft;
     d.el.style.transform = `translateX(${e.clientX - d.x0}px)`;
@@ -150,11 +163,18 @@ tsTabsEl.addEventListener('pointermove', (e) => {
 function tsEndDrag(e) {
     const d = tsDragging; if (!d) return;
     tsDragging = null;
-    d.el.classList.remove('ts-dragging'); d.el.style.transform = '';
+    const detached = d.el.classList.contains('ts-detach');
+    d.el.classList.remove('ts-dragging', 'ts-detach'); d.el.style.transform = '';
     if (!d.moved) { activateTab(d.id); return; }
-    // ウィンドウの外で離したら別ウィンドウへ（設定でオンの時）
-    const outside = e && (e.clientY < -10 || e.clientY > innerHeight + 10 || e.clientX < -10 || e.clientX > innerWidth + 10);
-    if (outside && typeof tabTearOffEnabled === 'function' && tabTearOffEnabled() && typeof moveTabToNewWindow === 'function') { moveTabToNewWindow(d.id); return; }
+    // ▼ 変更：タブバーから引き出して離したら、別のウィンドウの上ならそこへ移し（ウィンドウに戻す）、
+    //   何も無い所ならその位置に新しいウィンドウを作る（設定でオンの時）
+    if (detached && e && typeof tabTearOffEnabled === 'function' && tabTearOffEnabled()) {
+        const card = getTabCard(d.id);
+        const outsideWindow = e.clientY < -10 || e.clientY > innerHeight + 10 || e.clientX < -10 || e.clientX > innerWidth + 10;
+        if (card && outsideWindow) { tearOffTab(card, e.screenX, e.screenY); queueTabstrip(); return; }
+        if (card && getTabCards().length > 1) { tearOffTab(card, e.screenX, e.screenY); queueTabstrip(); return; }
+        queueTabstrip(); return;
+    }
     // 上で並べ替えた順をサイドバーのタブへ反映する（後ろのタブの前に入れると、そのタブのグループに入る）
     const card = getTabCard(d.id);
     const next = d.el.nextElementSibling?.closest('.ts-tab');
@@ -169,6 +189,11 @@ function tsEndDrag(e) {
 }
 tsTabsEl.addEventListener('pointerup', tsEndDrag);
 tsTabsEl.addEventListener('pointercancel', () => tsEndDrag(null));
+// ▼ 追加：マウスのキャプチャが外れた（ウィンドウの切り替えなど）時も、ドラッグ中の見た目を必ず元に戻す
+tsTabsEl.addEventListener('lostpointercapture', () => {
+    setTimeout(() => { const d = tsDragging; if (d && !d.el.hasPointerCapture?.(d.pointerId)) tsEndDrag(null); }, 30);
+});
+window.addEventListener('blur', () => { if (tsDragging) tsEndDrag(null); });
 tsTabsEl.addEventListener('click', (e) => {
     const x = e.target.closest('.ts-x');
     if (x) { tsCloseTab(x.closest('.ts-tab').dataset.id); return; }

@@ -35,6 +35,8 @@ function buildCommands() {
         { id: 'new-private', group: 'タブ', title: '新しいシークレットタブ', keywords: 'private incognito secret', key: 'Ctrl+Shift+N', run: () => SHORTCUT_ACTIONS['new-private-tab']() },
         { id: 'new-window', group: 'ウィンドウ', title: '新しいウィンドウ', keywords: 'new window', key: 'Ctrl+N', run: () => window.electronAPI.openNewWindow({}) },
         { id: 'new-private-window', group: 'ウィンドウ', title: '新しいウィンドウ（シークレット）', keywords: 'private window incognito', run: () => window.electronAPI.openNewWindow({ isPrivate: true }) },
+        { id: 'merge-windows', group: 'ウィンドウ', title: 'すべてのウィンドウをこのウィンドウにまとめる', keywords: 'merge windows combine まとめる 結合 戻す', run: () => mergeAllWindows() },
+        { id: 'other-window', group: 'ウィンドウ', title: 'このタブをほかのウィンドウに移動', keywords: 'move tab other window 戻す', when: hasTab, run: () => moveTabToOtherWindow(activeTabId) },
         { id: 'move-window', group: 'ウィンドウ', title: 'このタブを新しいウィンドウに移動', keywords: 'move tab window detach', when: hasTab, run: () => moveTabToNewWindow(activeTabId) },
         { id: 'close-tab', group: 'タブ', title: 'タブを閉じる', keywords: 'close tab', key: 'Ctrl+W', when: hasTab, run: () => closeTab(activeTabId) },
         { id: 'restore-tab', group: 'タブ', title: '閉じたタブを開き直す', keywords: 'restore reopen closed', key: 'Ctrl+Shift+T', when: () => closedTabStack.length > 0, run: () => restoreClosedTab() },

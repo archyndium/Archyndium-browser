@@ -68,10 +68,32 @@ function isOutsideWindow(x, y) {
 
 async function tearOffTab(card, screenX, screenY) {
   const tabId = card.getAttribute('data-tab-id');
-  // このウィンドウの最後の 1 枚なら何もしない（ウィンドウを空にしないため）
-  if (getTabCards().length <= 1) return;
-  const result = await window.electronAPI?.tearOffTab({ url: card.getAttribute('data-url'), isPrivate: isPrivateTab(tabId), screenX, screenY });
-  if (result) closeTab(tabId);
+  // ▼ 変更：このウィンドウの最後の 1 枚は、別のウィンドウの上で離した時だけ移して、このウィンドウを閉じる（ウィンドウを戻す）
+  const last = getTabCards().length <= 1;
+  const result = await window.electronAPI?.tearOffTab({ url: card.getAttribute('data-url'), isPrivate: isPrivateTab(tabId), screenX, screenY, onlyMerge: last });
+  if (!result) return result;
+  if (last) { window.electronAPI?.windowControl('close'); return result; }
+  closeTab(tabId);
+  return result;
+}
+
+// ▼ 追加：ほかのウィンドウのタブを、すべてこのウィンドウにまとめる（ほかのウィンドウは閉じる）
+function mergeAllWindows() {
+  if ((window.electronAPI?.windowCountNow?.() || 1) <= 1) { showToast('ほかのウィンドウはありません'); return; }
+  window.electronAPI?.mergeWindows();
+}
+window.electronAPI?.onMergeIntoWindow?.(({ targetId }) => {
+  const tabs = getTabCards().map(c => ({ url: c.getAttribute('data-url'), isPrivate: isPrivateTab(c.getAttribute('data-tab-id')) })).filter(t => t.url);
+  window.electronAPI.moveTabsToWindow(targetId, tabs);
+  setTimeout(() => window.electronAPI.windowControl('close'), 150);
+});
+// タブを、ほかのウィンドウ（最後に使った別のウィンドウ）へ移す
+async function moveTabToOtherWindow(tabId) {
+  const card = getTabCard(tabId);
+  if (!card) return;
+  const ok = await window.electronAPI?.moveTabToOtherWindow({ url: card.getAttribute('data-url'), isPrivate: isPrivateTab(tabId) });
+  if (!ok) { showToast('ほかのウィンドウはありません'); return; }
+  if (getTabCards().length <= 1) window.electronAPI?.windowControl('close'); else closeTab(tabId);
 }
 
 function setupDraggable(element, type) {

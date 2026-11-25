@@ -151,7 +151,7 @@ ipcMain.on('open-new-window', (event, opts) => openNewWindow(event, opts || {}))
 
 // ▼ 追加：タブをウィンドウの外へドラッグした。別のブラウザウィンドウの上ならそちらへ移し、
 //   何も無い所なら、その位置に新しいウィンドウを作る
-ipcMain.handle('tab-tear-off', (event, { url, isPrivate, screenX, screenY }) => {
+ipcMain.handle('tab-tear-off', (event, { url, isPrivate, screenX, screenY, onlyMerge }) => {
   if (!url) return null;
   const from = BrowserWindow.fromWebContents(event.sender);
   const target = windows.all().find(w => w !== from && !w.isMinimized() && (() => {
@@ -163,12 +163,37 @@ ipcMain.handle('tab-tear-off', (event, { url, isPrivate, screenX, screenY }) => 
     target.focus();
     return 'moved';
   }
+  if (onlyMerge) return null;   // ウィンドウの最後のタブ：別のウィンドウの上でなければ何もしない
   const size = from && !from.isMaximized() ? from.getBounds() : { width: 1280, height: 800 };
   const query = { url };
   if (isPrivate) query.private = '1';
   createWindow(query, { x: Math.round(screenX - 160), y: Math.round(screenY - 20), width: size.width, height: size.height });
   return 'new';
 });
+// ▼ 追加：ウィンドウをまとめる。to = 'all'（ほかのウィンドウのタブをすべてこのウィンドウへ）
+ipcMain.on('merge-windows', (event) => {
+  const target = BrowserWindow.fromWebContents(event.sender);
+  if (!target) return;
+  windows.all().filter(w => w !== target).forEach(w => windows.sendTo(w, 'merge-into-window', { targetId: target.id }));
+  target.focus();
+});
+// ほかのウィンドウから送られてきたタブを、指定のウィンドウで開く（裏で開く）
+ipcMain.on('move-tabs-to-window', (event, { targetId, tabs } = {}) => {
+  const target = windows.all().find(w => w.id === targetId);
+  if (!target || !Array.isArray(tabs)) return;
+  tabs.slice(0, 200).forEach(t => { if (t && typeof t.url === 'string') windows.sendTo(target, 'open-in-new-tab', { url: t.url, background: true, isPrivate: !!t.isPrivate }); });
+});
+// タブを「ほかのウィンドウ」（最後に使った別のウィンドウ）へ移す
+ipcMain.handle('move-tab-to-other-window', (event, { url, isPrivate } = {}) => {
+  const from = BrowserWindow.fromWebContents(event.sender);
+  const target = windows.all().filter(w => w !== from).pop();
+  if (!target || typeof url !== 'string') return false;
+  windows.sendTo(target, 'open-in-new-tab', { url, background: false, isPrivate: !!isPrivate });
+  target.focus();
+  return true;
+});
+ipcMain.on('window-count-sync', (event) => { event.returnValue = windows.count(); });
+
 // アプリごと終了する時は全ウィンドウを保存させたいので、「残りのウィンドウ数」を 1 として返す
 //（renderer はウィンドウ数が 2 以上だと「このウィンドウだけ閉じた」とみなして保存を消すため）
 let appQuitting = false;

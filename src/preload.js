@@ -61,6 +61,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   popupMenu: (items) => ipcRenderer.invoke('popup-menu', items),
   openNewWindow: (opts) => ipcRenderer.send('open-new-window', opts),
+  // ▼ 追加：ウィンドウをまとめる・タブをほかのウィンドウへ移す
+  mergeWindows: () => ipcRenderer.send('merge-windows'),
+  moveTabsToWindow: (targetId, tabs) => ipcRenderer.send('move-tabs-to-window', { targetId, tabs }),
+  moveTabToOtherWindow: (tab) => ipcRenderer.invoke('move-tab-to-other-window', tab),
+  onMergeIntoWindow: (callback) => ipcRenderer.on('merge-into-window', (e, data) => callback(data)),
+  windowCountNow: () => ipcRenderer.sendSync('window-count-sync'),
   tearOffTab: (payload) => ipcRenderer.invoke('tab-tear-off', payload),
   onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (e, on) => callback(on)),
   windowCount: () => ipcRenderer.sendSync('window-count'),

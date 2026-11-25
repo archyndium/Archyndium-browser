@@ -105,6 +105,8 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
         { id: 'split-v', label: '表示中のタブと上下に並べる', enabled: tabId !== activeTabId },
         { id: 'unsplit', label: '分割を解除', enabled: isInSplit(tabId) },
         { id: 'new-window', label: '新しいウィンドウに移動' },
+        { id: 'other-window', label: 'ほかのウィンドウに移動', enabled: (window.electronAPI?.windowCountNow?.() || 1) > 1 },
+        { id: 'merge-windows', label: 'すべてのウィンドウをこのウィンドウにまとめる', enabled: (window.electronAPI?.windowCountNow?.() || 1) > 1 },
         { id: 'workspace', label: 'Work / Focus に登録', enabled: /^https?:/i.test(url) },
         { type: 'separator' },
         { id: 'bookmark', label: findBookmarkCard(url) ? 'ブックマークを編集…' : 'ブックマークに追加…', enabled: /^(https?|file):/i.test(url) },
@@ -136,6 +138,8 @@ document.getElementById('panel-tabs').addEventListener('contextmenu', async (e) 
         case 'split-v': startSplit(activeTabId, tabId, 'v'); break;
         case 'unsplit': unsplit(); break;
         case 'new-window': moveTabToNewWindow(tabId); break;
+        case 'other-window': moveTabToOtherWindow(tabId); break;
+        case 'merge-windows': mergeAllWindows(); break;
         case 'workspace': addTabToWorkspace(card); showToast('Work / Focus に登録しました'); break;
         case 'player': (mediaLocked && mediaTargetTabId === tabId) ? toggleMediaLock() : setMediaTarget(tabId, { lock: true }); break;
         case 'copy': navigator.clipboard.writeText(url).catch(() => {}); break;

@@ -1276,3 +1276,8 @@ body.opaque-window .command-header-area *:not(.command-header), body.opaque-wind
 /* 掴める範囲を作り直す一瞬だけ外す（renderer/core.js の refreshDragRegions） */
 body.opaque-window.drag-refresh .tabstrip, body.opaque-window.drag-refresh .header-drag-area,
 body.opaque-window.drag-refresh .command-header-area, body.opaque-window.drag-refresh .command-header { -webkit-app-region: no-drag; }
+/* タブバーから引き出したタブ（離すと別のウィンドウへ） */
+.ts-tab.ts-detach { opacity: 0.55; box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35); outline: 1px dashed color-mix(in srgb, var(--theme-light) 60%, transparent); outline-offset: -2px; }
+/* 右上のボタンの左側に、いつでも掴める余白を残す */
+body.layout-top .ts-drag { min-width: 72px; }
+body.layout-top .tabstrip .window-controls { padding-left: 0; }

@@ -232,14 +232,21 @@
         let moving = false;
         geo.forEach(g => {
             const p = piles.get(g.id);
-            if (p && p.h.some(h => h > 0.15)) {
+            // ▼ 修正：積もり始めのごく薄い雪が、タブの上に細い線（表示の乱れ）のように見えていた。
+            //   ある程度積もるまでは描かず、輪郭も雪の上側だけに引く（タブとの境目には線を引かない）
+            if (p && Math.max(...p.h) > 0.9) {
                 ctx.beginPath(); ctx.moveTo(g.x0, g.top + 0.5);
                 p.h.forEach((h, i) => ctx.lineTo(g.x0 + i * 2, g.top + 0.5 - h));
                 ctx.lineTo(g.x1, g.top + 0.5); ctx.closePath();
                 ctx.fillStyle = light ? '#f4f8ff' : '#ffffff';
                 ctx.shadowColor = light ? 'rgba(60,90,150,.45)' : 'rgba(255,255,255,.35)'; ctx.shadowBlur = light ? 3 : 6; ctx.shadowOffsetY = light ? 1 : 0;
                 ctx.fill(); ctx.shadowColor = 'transparent'; ctx.shadowOffsetY = 0;
-                if (light) { ctx.strokeStyle = 'rgba(110,140,190,.55)'; ctx.lineWidth = 0.8; ctx.stroke(); }
+                if (light) {
+                    ctx.beginPath();
+                    let drawing = false;
+                    p.h.forEach((h, i) => { const x = g.x0 + i * 2, y = g.top + 0.5 - h; if (h > 0.6) { drawing ? ctx.lineTo(x, y) : ctx.moveTo(x, y); drawing = true; } else drawing = false; });
+                    ctx.strokeStyle = 'rgba(110,140,190,.5)'; ctx.lineWidth = 0.8; ctx.stroke();
+                }
             }
             const list = stuck.get(g.id); if (!list || !list.length) return;
             const w = g.x1 - g.x0;
