@@ -59,7 +59,13 @@ document.addEventListener('error', (e) => {
 }, true);
 
 // ▼ 変更：ウィンドウを掴んで動かす（上部のバー・サイドパネルの見出し）。ダブルクリックで最大化
-setupWindowDrag({ handles: '.header-drag-area, .command-header, .command-header-area, .ts-drag, .tabstrip', maximizeOnDoubleClick: true });
+// ▼ 変更：不透明なウィンドウ（初期設定）では、Windows 標準のウィンドウ移動（CSS の -webkit-app-region: drag）を使う。
+//   最大化中に掴んで動かすと元の大きさに戻る・画面の上端や左右に寄せると拡大表示（スナップ）が出る、など
+//   Windows と同じ動きになる。アプリ自身で動かす処理（window-drag.js）は、透明なウィンドウの時だけ使う
+//   （透明なウィンドウでは、標準の移動だと操作の後に掴めなくなることがあったため）
+if (!document.body.classList.contains('opaque-window')) {
+  setupWindowDrag({ handles: '.header-drag-area, .command-header, .command-header-area, .ts-drag, .tabstrip', maximizeOnDoubleClick: true });
+}
 
 // ▼ 追加：タブの URL が変わった時に呼ばれる処理の登録先（拡張機能のストア検知・DRM の案内など）
 const tabUrlChangeHooks = [];

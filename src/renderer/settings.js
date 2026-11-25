@@ -39,6 +39,7 @@ async function renderMiscSettings() {
         settingRow({ icon: '⧉', label: 'タブをウィンドウの外へドラッグで別ウィンドウにする', checked: tabTearOffEnabled(), attrs: 'data-tearoff-toggle="1"' }) +
         settingRow({ icon: '★', label: 'ブックマークにサイトのアイコンを表示', sub: 'オフにすると星マーク', checked: siteIcons, attrs: 'data-bm-icon-toggle="1"' }) +
         settingRow({ icon: '🗑', label: 'ゴミ箱に捨てる時に確認する', checked: trashConfirmEnabled(), attrs: 'data-trash-confirm-toggle="1"' }) +
+        settingRow({ icon: '▦', label: 'Work / Focus に初期フォルダを追加', sub: 'Google・Microsoft・Social のうち、無いものだけを足します', attrs: 'data-ws-defaults="1"' }) +
         settingRow({ icon: '▤', label: 'タブにマウスを乗せると内容を表示', sub: 'タイトルとページの縮小画像（上タブの時）', checked: tabHoverEnabled(), attrs: 'data-tab-hover-toggle="1"' }) +
         settingRow({ icon: '↗', label: 'リンクにマウスを乗せるとプレビュー', sub: '行き先のページを読み込みます（Cookie は送りません。シークレットタブでは使いません）', checked: linkPreviewEnabled(), attrs: 'data-link-preview-toggle="1"' });
 }
@@ -138,6 +139,7 @@ document.getElementById('panel-settings').addEventListener('click', async (e) =>
     }
     if (t.closest('[data-bm-open-toggle]')) { setBookmarkOpenMode(bookmarkOpenMode() === 'new' ? 'current' : 'new'); renderMiscSettings(); return; }
     if (t.closest('[data-tearoff-toggle]')) { setTabTearOffEnabled(!tabTearOffEnabled()); renderMiscSettings(); return; }
+    if (t.closest('[data-ws-defaults]')) { addDefaultWorkspaceFolders(); return; }
     const sd = t.closest('[data-sitedata]');
     if (sd) { clearSiteDataFlow(sd.getAttribute('data-sitedata')); return; }
     if (t.closest('[data-tab-hover-toggle]')) { setTabHoverEnabled(!tabHoverEnabled()); renderMiscSettings(); return; }

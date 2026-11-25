@@ -1258,3 +1258,11 @@ body.opaque-window .app-wrapper { border-radius: 0; border: none; }
 .engine-item span { flex: 1; }
 .engine-item b { color: var(--theme-light); font-weight: 700; }
 html.theme-light .engine-item b { color: var(--theme-base); }
+
+/* ---------- 不透明なウィンドウ：Windows 標準のウィンドウ移動・スナップ（renderer/core.js） ---------- */
+body.opaque-window .tabstrip, body.opaque-window .header-drag-area,
+body.opaque-window .command-header-area, body.opaque-window .command-header { -webkit-app-region: drag; }
+/* 掴む場所の中にあるボタン・タブ・入力欄は、ふつうに操作できるようにする */
+body.opaque-window .ts-tab, body.opaque-window .ts-group, body.opaque-window .ts-new,
+body.opaque-window .window-controls, body.opaque-window .browser-toolbar,
+body.opaque-window .command-header-area *:not(.command-header), body.opaque-window .tabstrip button { -webkit-app-region: no-drag; }

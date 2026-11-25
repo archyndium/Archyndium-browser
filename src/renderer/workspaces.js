@@ -48,6 +48,24 @@ function defaultWorkspaces() {
     ];
 }
 
+const WS_DEFAULTS_V2_KEY = 'archyndium_ws_defaults_v2';
+// 初期フォルダ（Google・Microsoft・Social）のうち、まだ無いものを後ろに足す。足した数を返す
+function addDefaultWorkspaceFolders({ quiet = false } = {}) {
+    let added = 0;
+    defaultWorkspaces().forEach(def => {
+        const sameName = workspaces.find(w => (w.name || '').toLowerCase() === def.name.toLowerCase());
+        // 以前の初期内容の Social（Twitter だけ）は、新しい Social に置き換える
+        if (sameName && sameName.id === 'ws-social' && JSON.stringify(sameName.urls) === '["https://twitter.com"]') {
+            Object.assign(sameName, def); added++; return;
+        }
+        if (workspaces.some(w => w.id === def.id) || sameName) return;
+        workspaces.push(def); added++;
+    });
+    if (added) { saveWorkspaces(); renderWorkspaces(); }
+    if (!quiet) showToast(added ? `初期フォルダを ${added} 個追加しました` : '初期フォルダはすべて入っています');
+    return added;
+}
+
 function loadWorkspaces() {
     try {
         const stored = localStorage.getItem('archyndium_workspaces');
@@ -63,6 +81,14 @@ function loadWorkspaces() {
         workspaces = defaultWorkspaces();
         saveWorkspaces();
     }
+    // ▼ 追加：以前から使っていて自分で並べ替え・追加していた人にも、新しい初期フォルダを 1 回だけ足す
+    //   （今ある内容は消さない。以前の初期内容の「Social（Twitter だけ）」は新しい Social に置き換える）
+    try {
+        if (localStorage.getItem(WS_DEFAULTS_V2_KEY) !== 'done') {
+            addDefaultWorkspaceFolders({ quiet: true });
+            localStorage.setItem(WS_DEFAULTS_V2_KEY, 'done');
+        }
+    } catch (e) {}
     workspaces.forEach(ws => { ws.icons = ws.icons || {}; ws.titles = ws.titles || {}; });
     renderWorkspaces();
 }

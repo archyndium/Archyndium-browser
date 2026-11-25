@@ -96,6 +96,7 @@ function buildCommands() {
         { id: 'karaoke', group: '音楽', title: () => karaokeEnabled ? 'カラオケ表示をオフ' : 'カラオケ表示をオン', keywords: 'karaoke synced lyrics', run: () => setKaraokeEnabled(!karaokeEnabled) },
         { id: 'mini-player', group: '音楽', title: 'ミニプレイヤーを開く', keywords: 'mini player popout', run: () => window.electronAPI.openMiniPlayer() },
         { id: 'lock-player', group: '音楽', title: () => mediaLocked ? 'プレイヤーの固定を解除' : 'プレイヤーをこのタブに固定', keywords: 'lock player source', run: toggleMediaLock },
+        { id: 'ws-defaults', group: 'Work / Focus', title: 'Work / Focus に初期フォルダ（Google・Microsoft・Social）を追加', keywords: 'work focus workspace default google microsoft social 初期 フォルダ', run: () => addDefaultWorkspaceFolders() },
         { id: 'clear-site-data', group: 'ページ', title: 'このサイトの Cookie とデータを削除', keywords: 'cookie clear site data 削除 クッキー ログアウト 最近の検索', when: hasTab, run: () => clearSiteDataFlow('site') },
         { id: 'clear-all-site-data', group: 'ブラウザ', title: 'すべてのサイトの Cookie とデータを削除', keywords: 'cookie clear all data 削除 クッキー キャッシュ', run: () => clearSiteDataFlow('all') },
         // ▼ 追加：コピーできないページ
