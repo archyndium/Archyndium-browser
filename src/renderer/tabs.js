@@ -74,7 +74,7 @@ function switchTab(tabId) {
     const card = getTabCard(tabId);
     if (card) {
         const url = card.getAttribute('data-url') || '';
-        urlInput.value = url;
+        urlInput.value = displayUrl(url); // 新しいタブのページは空欄
         document.getElementById('btn-bookmark').classList.toggle('active-star', !!document.querySelector(`.bookmark-item[data-url="${CSS.escape(url)}"]`));
     }
     if (typeof refreshShieldSiteState === 'function') refreshShieldSiteState(); // 盾アイコンを切替先タブのモード・サイト例外に合わせる
@@ -98,6 +98,8 @@ function createWebviewForTab(tabId, url) {
     wv.style.cssText = "width: 100%; height: 100%; border: none; display: none; border-radius: 12px; background: #FFF; overflow: hidden;";
     
     wv.addEventListener('dom-ready', async () => {
+        // ▼ 追加：新しいタブのページ（アプリ同梱）には、広告処理などのスクリプトを入れず、表示する内容だけ渡す
+        if (isNewTabUrl(wv.getURL())) { pushNewTab(tabId); return; }
         // スクロールバー設定
         wv.insertCSS(`
             ::-webkit-scrollbar { width: 8px; } 
@@ -246,6 +248,11 @@ function createWebviewForTab(tabId, url) {
                 v.__archyndium_muted = v.muted;
               });
               v.addEventListener('pause', () => { if (isAudible(v)) console.log('ARCHYNDIUM_PAUSED'); });
+              // ▼ 追加：サイト側（YouTube の音量バーなど）で音量を変えた時に知らせる（こちらから変えた直後は除く）
+              v.addEventListener('volumechange', () => {
+                if (Date.now() - (window.__archyndium_vol_set || 0) < 600) return;
+                console.log('ARCHYNDIUM_VOLUME:' + (v.muted ? 0 : v.volume));
+              });
               v.addEventListener('timeupdate', () => {
                  if (v.duration && isAudible(v)) console.log('ARCHYNDIUM_PROGRESS:' + v.currentTime + ':' + v.duration);
               });
@@ -278,6 +285,10 @@ function createWebviewForTab(tabId, url) {
             onMediaPaused(tabId);
         } else if (msg.startsWith('ARCHYNDIUM_LINKHOVER:')) {
             try { if (typeof onLinkHover === 'function') onLinkHover(tabId, JSON.parse(msg.slice('ARCHYNDIUM_LINKHOVER:'.length))); } catch(err) {}
+        } else if (msg.startsWith('ARCHYNDIUM_NTP:')) {
+            if (typeof onNewTabMessage === 'function') onNewTabMessage(tabId, msg.slice('ARCHYNDIUM_NTP:'.length));
+        } else if (msg.startsWith('ARCHYNDIUM_VOLUME:')) {
+            if (typeof onPageVolume === 'function') onPageVolume(tabId, parseFloat(msg.slice('ARCHYNDIUM_VOLUME:'.length)));
         } else if (msg === 'ARCHYNDIUM_LINKOUT') {
             if (typeof hideLinkPreview === 'function') hideLinkPreview();
         } else if (msg === 'ARCHYNDIUM_PANE_FOCUS') {
@@ -304,13 +315,13 @@ function createWebviewForTab(tabId, url) {
             tabCard.querySelector('.favicon')?.setAttribute('data-letter', (siteHostOf(currentUrl)[0] || '•').toUpperCase());
         }
         if (tabId === activeTabId) {
-            urlInput.value = currentUrl;
+            urlInput.value = displayUrl(currentUrl);
             const isBookmarked = document.querySelector(`.bookmark-item[data-url="${currentUrl}"]`);
             if (isBookmarked) document.getElementById('btn-bookmark').classList.add('active-star'); 
             else document.getElementById('btn-bookmark').classList.remove('active-star');
         }
         // ▼ 修正：エラーの元になる getTitle() をやめ、UIから安全に取得
-        if (typeof addHistory === 'function' && !isPrivateTab(tabId)) { // シークレットタブは履歴に残さない
+        if (typeof addHistory === 'function' && !isPrivateTab(tabId) && !isNewTabUrl(currentUrl)) { // シークレットタブは履歴に残さない
             const safeTitle = tabCard ? tabCard.querySelector('.tab-title').textContent : currentUrl;
             addHistory(currentUrl, safeTitle);
         }
@@ -321,7 +332,7 @@ function createWebviewForTab(tabId, url) {
         const currentUrl = e.url;
         const tabCard = document.querySelector(`.tab-card[data-tab-id="${tabId}"]`);
         if (tabCard) tabCard.setAttribute('data-url', currentUrl);
-        if (tabId === activeTabId) urlInput.value = currentUrl;
+        if (tabId === activeTabId) urlInput.value = displayUrl(currentUrl);
         if (typeof onTabUrlChanged === 'function') onTabUrlChanged(tabId, currentUrl);
     });
 

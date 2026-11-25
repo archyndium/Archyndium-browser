@@ -51,13 +51,37 @@ async function renderPerfSettings() {
     box.innerHTML = settingRow({ icon: '⚡', label: 'ウィンドウの描画を軽くする', sub: '角の丸みと影は Windows 標準に。再起動後に反映', checked: s.opaqueWindow !== false, attrs: 'data-opaque-toggle="1"' });
 }
 
+// ▼ 追加：サイトのデータ（Cookie など）の削除
+function renderSiteDataSettings() {
+    const box = document.getElementById('sitedata-options');
+    if (!box) return;
+    let host = ''; try { host = new URL(urlInput.value).hostname; } catch (e) {}
+    box.innerHTML = (host ? settingRow({ icon: '⌫', label: `${escapeHtml(host.replace(/^www\./, ''))} のデータを削除`, sub: 'Cookie・保存データ。このサイトからログアウトします', attrs: 'data-sitedata="site"' }) : '')
+        + settingRow({ icon: '⌫', label: 'すべてのサイトのデータを削除', sub: 'Cookie・保存データ・キャッシュ。すべてのサイトからログアウトします', attrs: 'data-sitedata="all"' });
+}
+async function clearSiteDataFlow(scope) {
+    let host = ''; try { host = new URL(urlInput.value).hostname; } catch (e) {}
+    const all = scope === 'all' || !host;
+    const { ok } = await showConfirm({
+        title: all ? 'すべてのサイトのデータを削除' : `${host.replace(/^www\./, '')} のデータを削除`,
+        message: all ? 'すべてのサイトの Cookie・保存データ・キャッシュを削除します。ログインし直す必要があります。履歴とブックマークは消えません。'
+                     : 'このサイトの Cookie と保存データを削除します。このサイトにはログインし直す必要があります。検索エンジンの「最近の検索」もこの方法で消せます。',
+        confirmLabel: '削除', danger: true,
+    });
+    if (!ok) return;
+    const res = await window.electronAPI.clearSiteData(all ? null : host);
+    showToast(all ? 'すべてのサイトのデータを削除しました' : `${res.domain || host} のデータを削除しました（Cookie ${res.cleared} 件）`);
+    if (activeTabId && webviews[activeTabId]) webviews[activeTabId].reload();
+}
+
 function renderStartupSettings() {
     const box = document.getElementById('startup-options');
     if (!box) return;
     const on = isSessionRestoreEnabled();
     box.innerHTML =
         settingRow({ icon: '↺', label: '前回のタブを復元する', sub: 'タブとグループを戻す', checked: on, attrs: 'data-startup="on"' }) +
-        settingRow({ icon: '+', label: '新しいタブで始める', checked: !on, attrs: 'data-startup="off"' });
+        settingRow({ icon: '+', label: '新しいタブで始める', checked: !on, attrs: 'data-startup="off"' }) +
+        settingRow({ icon: '◎', label: '新しいタブに ARCHYNDIUM のスタートページを使う', sub: 'オフ：検索エンジンのトップページを開く', checked: newtabEnabled(), attrs: 'data-newtab-toggle="1"' });
 }
 
 function renderLyricsSettings() {
@@ -99,6 +123,7 @@ document.getElementById('panel-settings').addEventListener('click', async (e) =>
     const t = e.target;
     const startup = t.closest('[data-startup]');
     if (startup) { setSessionRestoreEnabled(startup.getAttribute('data-startup') === 'on'); renderStartupSettings(); return; }
+    if (t.closest('[data-newtab-toggle]')) { setNewtabEnabled(!newtabEnabled()); renderStartupSettings(); return; }
     if (t.closest('[data-karaoke-toggle]')) { setKaraokeEnabled(!karaokeEnabled); return; }
     const engine = t.closest('[data-engine]');
     if (engine) { setSearchEngine(engine.getAttribute('data-engine')); renderSearchSettings(); return; }
@@ -113,6 +138,8 @@ document.getElementById('panel-settings').addEventListener('click', async (e) =>
     }
     if (t.closest('[data-bm-open-toggle]')) { setBookmarkOpenMode(bookmarkOpenMode() === 'new' ? 'current' : 'new'); renderMiscSettings(); return; }
     if (t.closest('[data-tearoff-toggle]')) { setTabTearOffEnabled(!tabTearOffEnabled()); renderMiscSettings(); return; }
+    const sd = t.closest('[data-sitedata]');
+    if (sd) { clearSiteDataFlow(sd.getAttribute('data-sitedata')); return; }
     if (t.closest('[data-tab-hover-toggle]')) { setTabHoverEnabled(!tabHoverEnabled()); renderMiscSettings(); return; }
     if (t.closest('[data-link-preview-toggle]')) { setLinkPreviewEnabled(!linkPreviewEnabled()); renderMiscSettings(); return; }
     if (t.closest('[data-opaque-toggle]')) {
@@ -145,5 +172,6 @@ document.querySelector('.tool-icon[data-panel="panel-settings"]').addEventListen
     renderPerfSettings();
     renderLyricsSettings();
     renderShieldSiteSettings();
+    renderSiteDataSettings();
     renderPermissionSettings();
 });

@@ -10,7 +10,11 @@ const THEME_KEY = 'archyndium_theme';
 const DEFAULT_ACCENT = ['#1A2D42', '#2E4156', '#AAB7B7'];
 
 const THEMES = [
+    // ▼ 追加：OS の設定（明るい / 暗い）に合わせて Default Light / Default Dark を自動で切り替える
+    { id: 'system',   name: 'System',          system: true, bg: ['#0B0B0D', '#ECEEF1', '#FFFFFF'] },
     { id: 'default',  name: 'Default Dark',    bg: ['#0B0B0D', '#141417', '#2A2A30'] },
+    // ▼ 追加：白い標準テーマ（色味の少ない、一般的なブラウザに近い明るさ）
+    { id: 'light',    name: 'Default Light',   light: true, bg: ['#DADDE2', '#EEF0F3', '#FFFFFF'], accent: ['#3C4A5C', '#5A6A7E', '#2F5A8A'] },
     { id: 'graphite', name: 'Graphite',        bg: ['#101114', '#1A1B1F', '#30323A'], accent: ['#2B2E35', '#4A505C', '#C5CAD3'] },
     { id: 'navy',     name: 'Navy & Slate',    bg: ['#080D17', '#111826', '#222E43'] },
     { id: 'nord',     name: 'Nord Frost',      bg: ['#191D24', '#232833', '#363E4D'], accent: ['#3B4252', '#4C566A', '#88C0D0'] },
@@ -43,8 +47,14 @@ const THEME_MODE_VARS = {
 
 let currentThemeId = 'default';
 
+const systemDarkMQ = matchMedia('(prefers-color-scheme: dark)');
+const resolveTheme = (theme) => theme.system ? THEMES.find(t => t.id === (systemDarkMQ.matches ? 'default' : 'light')) : theme;
+// System を選んでいる時は、OS の設定が変わったらすぐに切り替える
+systemDarkMQ.addEventListener?.('change', () => { if (currentThemeId === 'system') applyTheme('system', { save: false }); });
+
 function applyTheme(id, { save = true } = {}) {
-    const theme = THEMES.find(t => t.id === (THEME_MOVED[id] || id)) || THEMES[0];
+    const chosen = THEMES.find(t => t.id === (THEME_MOVED[id] || id)) || THEMES.find(t => t.id === 'default');
+    const theme = resolveTheme(chosen);
     const root = document.documentElement;
     const [nexus, command, canvas] = theme.bg;
     const [dark, base, light] = theme.accent || DEFAULT_ACCENT;
@@ -56,8 +66,8 @@ function applyTheme(id, { save = true } = {}) {
     root.style.setProperty('--theme-light', light);
     Object.entries(THEME_MODE_VARS[theme.light ? 'light' : 'dark']).forEach(([k, v]) => root.style.setProperty(k, v));
     root.classList.toggle('theme-light', !!theme.light);
-    currentThemeId = theme.id;
-    if (save) { try { localStorage.setItem(THEME_KEY, theme.id); } catch(e) {} }
+    currentThemeId = chosen.id;
+    if (save) { try { localStorage.setItem(THEME_KEY, chosen.id); } catch(e) {} }
     renderThemeList();
 }
 
@@ -72,8 +82,9 @@ function renderThemeList() {
     if (!list) return;
     list.innerHTML = THEMES.map(t => {
         const [, base, light] = t.accent || DEFAULT_ACCENT;
-        return `<div class="theme-card ${t.id === currentThemeId ? 'selected' : ''}" data-theme="${t.id}" title="${t.name}">
-            <div class="theme-swatch" style="background: linear-gradient(135deg, ${t.bg[0]} 0 34%, ${t.bg[2]} 34% 67%, ${base} 67%);">
+        const swatch = t.system ? 'linear-gradient(135deg, #0B0B0D 0 50%, #FFFFFF 50%)' : `linear-gradient(135deg, ${t.bg[0]} 0 34%, ${t.bg[2]} 34% 67%, ${base} 67%)`;
+        return `<div class="theme-card ${t.id === currentThemeId ? 'selected' : ''}" data-theme="${t.id}" title="${t.system ? 'OS の設定（明るい / 暗い）に合わせる' : t.name}">
+            <div class="theme-swatch" style="background: ${swatch};">
               <span class="theme-dot" style="background:${light}"></span>
             </div>
             <span class="theme-name">${t.name}</span>

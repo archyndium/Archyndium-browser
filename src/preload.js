@@ -84,6 +84,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ▼ 追加：アプリ全体の設定（不透明なウィンドウなど）
   getAppSettings: () => ipcRenderer.invoke('app-settings-get'),
   setAppSetting: (key, value) => ipcRenderer.invoke('app-settings-set', key, value),
+  // ▼ 追加：サイトのデータ（Cookie など）の削除。host を省くとすべて
+  clearSiteData: (host) => ipcRenderer.invoke('site-data-clear', host),
+  // ▼ 追加：ミニプレイヤーの大きさの変更（右下の角をドラッグ）
+  miniResize: (size) => ipcRenderer.send('mini-resize', size),
   // ▼ 追加：リンクのプレビュー（ページのタイトル・画像を main で取得）
   linkPreview: (url) => ipcRenderer.invoke('link-preview', url),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),

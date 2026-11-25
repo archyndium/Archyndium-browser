@@ -39,7 +39,7 @@ Space キーでタイミングを付けて、自分で作ったりできます�
 ・広告・トラッカーのブロック（サイトごと・タブごとに切り替え）
 ・コマンドパレット、ページ内検索、リーダーモード、翻訳、PDF の表示と保存
 ・ブックマーク（Chrome・Edge・Brave などから取り込み可）、履歴、ダウンロード管理、メモ
-・シークレットモード、12 種類のテーマ、拡張機能
+・シークレットモード、14 種類のテーマ（OS に合わせる設定あり）、拡張機能
 
 利用状況の収集（テレメトリ）は行いません。ソースコードは GitHub で公開しています（GPLv3）。
 ```
@@ -105,7 +105,7 @@ Everyday browsing features are included:
 - Ad and tracker blocking, switchable per site and per tab
 - Command palette, find in page, reader mode, translation, PDF viewing and saving
 - Bookmarks (import from Chrome, Edge, Brave and more), history, downloads, notes
-- Private mode, 12 themes, and browser extensions
+- Private mode, 14 themes (including one that follows the system setting), and browser extensions
 
 No telemetry is collected. The source code is available on GitHub under the GPLv3.
 ```

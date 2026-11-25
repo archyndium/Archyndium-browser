@@ -20,7 +20,7 @@ const K = (s) => isMacPlatform ? s.replace(/Ctrl/g, '⌘') : s;
 
 // テーマ名の日本語の読み（「さくら」「みどり」などでも探せるように）
 const THEME_READINGS = {
-    default: 'デフォルト 黒 くろ ダーク', navy: 'ネイビー 紺 こん', green: 'グリーン 緑 みどり 森', purple: 'パープル 紫 むらさき',
+    system: 'システム 自動 OS ダークモード ライトモード', light: 'デフォルト 白 しろ ライト 明るい', default: 'デフォルト 黒 くろ ダーク', navy: 'ネイビー 紺 こん', green: 'グリーン 緑 みどり 森', purple: 'パープル 紫 むらさき',
     graphite: 'グラファイト 灰色 グレー', nord: 'ノルド 北欧', crimson: 'クリムゾン 赤 あか', amber: 'アンバー 夕焼け オレンジ',
     dusk: 'ダスク 夕暮れ 夜 青紫', paper: 'ペーパー 紙 白 明るい ライト', mist: 'ミスト 霧 白 明るい ライト 青', sage: 'セージ 緑 白 明るい ライト',
 };
@@ -96,6 +96,8 @@ function buildCommands() {
         { id: 'karaoke', group: '音楽', title: () => karaokeEnabled ? 'カラオケ表示をオフ' : 'カラオケ表示をオン', keywords: 'karaoke synced lyrics', run: () => setKaraokeEnabled(!karaokeEnabled) },
         { id: 'mini-player', group: '音楽', title: 'ミニプレイヤーを開く', keywords: 'mini player popout', run: () => window.electronAPI.openMiniPlayer() },
         { id: 'lock-player', group: '音楽', title: () => mediaLocked ? 'プレイヤーの固定を解除' : 'プレイヤーをこのタブに固定', keywords: 'lock player source', run: toggleMediaLock },
+        { id: 'clear-site-data', group: 'ページ', title: 'このサイトの Cookie とデータを削除', keywords: 'cookie clear site data 削除 クッキー ログアウト 最近の検索', when: hasTab, run: () => clearSiteDataFlow('site') },
+        { id: 'clear-all-site-data', group: 'ブラウザ', title: 'すべてのサイトの Cookie とデータを削除', keywords: 'cookie clear all data 削除 クッキー キャッシュ', run: () => clearSiteDataFlow('all') },
         // ▼ 追加：コピーできないページ
         { id: 'unlock-copy', group: 'ページ', title: 'このサイトのコピー制限を解除', keywords: 'copy unlock コピー 禁止 解除 右クリック 選択', when: hasTab, run: () => unlockCopy(activeTabId) },
         { id: 'extract-text', group: 'ページ', title: 'ページの文字を取り出す', keywords: 'text extract 文字 テキスト 抜き出す コピー', when: hasTab, run: () => extractPageText(activeTabId) },

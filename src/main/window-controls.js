@@ -7,10 +7,16 @@
 const { BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const windows = require('./windows');
+const { createStore } = require('./store');
 
 let miniPlayerWindow = null;
 // ミニプレイヤーの大きさ（歌詞を閉じた時 / 開いた時）
 const MINI_W = 360, MINI_H = 160, MINI_H_EXPANDED = 540;
+// ▼ 追加：大きさを変えられるようにした。幅と、歌詞を開いた時の高さを覚えておく
+const MINI_LIMITS = { minW: 300, maxW: 760, minExpandedH: 320, maxH: 1000 };
+const miniStore = createStore('mini-player', { width: MINI_W, expandedHeight: MINI_H_EXPANDED });
+const miniWidth = () => Math.max(MINI_LIMITS.minW, Math.min(MINI_LIMITS.maxW, Number(miniStore.get('width')) || MINI_W));
+const miniExpandedHeight = () => Math.max(MINI_LIMITS.minExpandedH, Math.min(MINI_LIMITS.maxH, Number(miniStore.get('expandedHeight')) || MINI_H_EXPANDED));
 let playerWindow = null;   // ミニプレイヤーと同期しているブラウザウィンドウ
 let playerIsPlaying = false;
 let playerLocked = false;
@@ -31,12 +37,12 @@ function setPlayerWindow(win) {
 
 // ▼ 修正：Windows では resizable: false のウィンドウに setSize が効かないことがあり、
 //   歌詞を閉じても大きいままになっていた。一時的に変更可能にしてから大きさを変える
-function resizeMini(height) {
+function resizeMini(height, width = miniWidth()) {
   if (!miniPlayerWindow || miniPlayerWindow.isDestroyed()) return;
   const b = miniPlayerWindow.getBounds();
   miniPlayerWindow.setResizable(true);
-  miniPlayerWindow.setMinimumSize(MINI_W, MINI_H);
-  miniPlayerWindow.setBounds({ x: b.x, y: b.y, width: MINI_W, height });
+  miniPlayerWindow.setMinimumSize(MINI_LIMITS.minW, MINI_H);
+  miniPlayerWindow.setBounds({ x: b.x, y: b.y, width, height });
   miniPlayerWindow.setResizable(false);
 }
 
@@ -48,7 +54,7 @@ function init() {
     if (command === 'close' && win) win.close();
     if (command === 'fullscreen' && win) win.setFullScreen(!win.isFullScreen());
 
-    if (command === 'mini-expand') resizeMini(MINI_H_EXPANDED);
+    if (command === 'mini-expand') resizeMini(miniExpandedHeight());
     if (command === 'mini-collapse') resizeMini(MINI_H);
   });
 
@@ -57,7 +63,7 @@ function init() {
     if (!playerWindow || playerWindow.isDestroyed()) playerWindow = BrowserWindow.fromWebContents(event.sender);
     if (miniPlayerWindow) { miniPlayerWindow.focus(); return; }
     miniPlayerWindow = new BrowserWindow({
-      width: MINI_W, height: MINI_H, frame: false, transparent: true, alwaysOnTop: true, resizable: false,
+      width: miniWidth(), height: MINI_H, frame: false, transparent: true, alwaysOnTop: true, resizable: false,
       thickFrame: false, hasShadow: false, backgroundColor: '#00000000', // 角の外側に四角い枠を出さない
       webPreferences: { preload: path.join(__dirname, '..', 'preload.js'), contextIsolation: true }
     });
@@ -67,6 +73,15 @@ function init() {
     miniPlayerWindow.on('closed', () => { miniPlayerWindow = null; windows.sendTo(playerWindow, 'mini-player-state', { open: false }); });
   });
   ipcMain.on('close-mini-player', () => { if(miniPlayerWindow) miniPlayerWindow.close(); });
+  // ▼ 追加：ミニプレイヤーの右下の角・右端をドラッグして大きさを変える
+  ipcMain.on('mini-resize', (event, size) => {
+    if (!miniPlayerWindow || miniPlayerWindow.isDestroyed() || !size) return;
+    const width = Math.max(MINI_LIMITS.minW, Math.min(MINI_LIMITS.maxW, Math.round(Number(size.width) || MINI_W)));
+    let height = MINI_H;
+    if (size.expanded) height = size.widthOnly ? miniPlayerWindow.getBounds().height : Math.max(MINI_LIMITS.minExpandedH, Math.min(MINI_LIMITS.maxH, Math.round(Number(size.height) || MINI_H_EXPANDED)));
+    resizeMini(height, width);
+    if (size.done) { miniStore.set('width', width); if (size.expanded) miniStore.set('expandedHeight', height); }
+  });
 
   // Store lyrics text and sync state
   let currentLyricsSync = { text: '', isManual: false };

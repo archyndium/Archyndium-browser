@@ -51,6 +51,7 @@ const compat = require('./main/compat');
 const updater = require('./main/updater');
 const appSettings = require('./main/app-settings');
 const linkPreview = require('./main/link-preview');
+const newtabProtocol = require('./main/newtab-protocol');
 
 // Windows：通知やタスクバーでアプリを正しく識別させる（package.json の build.appId と同じ値）
 if (process.platform === 'win32') app.setAppUserModelId('com.archyndium.browser');
@@ -193,6 +194,7 @@ compat.init();
 updater.init();
 appSettings.init();
 linkPreview.init();
+newtabProtocol.init({ privatePartition: privateSession.PRIVATE_PARTITION });
 ipcMain.handle('take-startup-urls', () => { const urls = startupUrls; startupUrls = []; return urls; });
 security.removeIpcGuard();
 

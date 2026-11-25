@@ -82,15 +82,48 @@ audioEl.addEventListener('ended', () => {
   else { isPlaying = false; updatePlayBtn(); }
 });
 
-// ▼ 追加：本体側の音量スライダーの処理
-document.getElementById('main-volume-slider').addEventListener('input', (e) => {
-    const vol = e.target.value;
-    if (audioPlaylist.length > 0) audioEl.volume = vol;
-    Object.values(webviews).forEach(wv => {
-        wv.executeJavaScript(`var v=document.querySelector('video')||document.querySelector('audio'); if(v) v.volume = ${vol};`).catch(()=>{});
-    });
-    if (window.electronAPI) window.electronAPI.controlFromMini({ type: 'volume', value: vol });
-});
+// ▼ 変更：音量。本体のスライダー・ミニプレイヤー・サイト側（YouTube の音量バーなど）の 3 つをそろえる
+//   以前は video.volume を直接変えていたため、音は変わってもサイト側の音量バーが動かず、
+//   サイト側で変えた音量もこちらのスライダーに反映されていなかった
+let currentVolume = 1;
+let volumeFromPageAt = 0;   // サイト側から音量が届いた時刻（送り返して打ち消し合わないように）
+
+// 操作しているタブ（再生元）のページの音量を変える。YouTube はプレイヤーの機能で変えると音量バーも動く
+function applyVolumeToPage(vol) {
+    const target = mediaTargetTabId || activeTabId;
+    const wv = target && webviews[target];
+    if (!wv) return;
+    const v = Math.max(0, Math.min(1, Number(vol) || 0));
+    wv.executeJavaScript(`(() => {
+      window.__archyndium_vol_set = Date.now();
+      const p = document.getElementById('movie_player');
+      if (p && typeof p.setVolume === 'function') {
+        if (${v} === 0) { p.mute && p.mute(); return; }
+        if (p.isMuted && p.isMuted()) p.unMute();
+        p.setVolume(${Math.round(v * 100)});
+        return;
+      }
+      document.querySelectorAll('video, audio').forEach(m => { m.volume = ${v}; if (${v} > 0) m.muted = false; });
+    })()`).catch(() => {});
+}
+
+function setAppVolume(vol, { fromPage = false, fromMini = false } = {}) {
+    currentVolume = Math.max(0, Math.min(1, Number(vol) || 0));
+    if (audioPlaylist.length > 0) audioEl.volume = currentVolume;
+    const slider = document.getElementById('main-volume-slider');
+    if (slider && Math.abs(slider.value - currentVolume) > 0.001) slider.value = currentVolume;
+    if (fromPage) volumeFromPageAt = Date.now();
+    else applyVolumeToPage(currentVolume);
+    // ミニプレイヤーへは syncTick の volume で伝わる（fromMini の時も、本体のスライダーをそろえるだけ）
+}
+
+// サイト側で音量を変えた時（tabs.js の ARCHYNDIUM_VOLUME から）
+function onPageVolume(tabId, vol) {
+    if (tabId !== (mediaTargetTabId || activeTabId)) return;
+    setAppVolume(vol, { fromPage: true });
+}
+
+document.getElementById('main-volume-slider').addEventListener('input', (e) => setAppVolume(e.target.value));
 
 function initAudio() {
   audioCtx = new (window.AudioContext || window.webkitAudioContext)(); sourceNode = audioCtx.createMediaElementSource(audioEl);
@@ -199,6 +232,8 @@ function syncTick() {
         claim: Date.now() < mediaClaimUntil, // ユーザーがこのウィンドウのタブを選んで固定した直後
         rawTime: currentPlaybackTime(), rawDuration: audioPlaylist.length > 0 ? (audioEl.duration || 0) : currentMediaDuration,
         isManualLyrics: currentLyricsSyncManual,
+        // ▼ 追加：今の音量（サイト側・本体で変えた時にミニプレイヤーの表示もそろえる）
+        volume: currentVolume,
         // ▼ 追加：本体のテーマ色（ミニプレイヤーの色をテーマに合わせる）
         accent: cachedThemeAccent(),
         // ▼ 追加：カラオケ表示（行データは変わった時だけ送る）
@@ -225,10 +260,7 @@ window.electronAPI?.onControlToMain((cmd) => {
   }
   // ▼ 追加：音量変更の受信
   else if (cmd && cmd.type === 'volume') {
-      if (audioPlaylist.length > 0) audioEl.volume = cmd.value;
-      Object.values(webviews).forEach(wv => {
-          wv.executeJavaScript(`var v=document.querySelector('video')||document.querySelector('audio'); if(v) v.volume = ${cmd.value};`).catch(()=>{});
-      });
+      setAppVolume(cmd.value, { fromMini: true });
   }
   // ▼ 追加：ミニプレイヤーからの「手動検索命令」を受け取って本体で実行する
   else if (cmd && cmd.type === 'manual-search') {

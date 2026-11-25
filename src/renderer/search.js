@@ -60,7 +60,8 @@ function setSearchSuggestEnabled(on) {
 
 // 新しいタブで開くページ（選んだ検索エンジンのトップ）
 function getHomeUrl() {
-    return currentEngine().home;
+    // ▼ 変更：新しいタブは ARCHYNDIUM のスタートページ（設定でオフにすると検索エンジンのトップ）
+    return typeof newtabEnabled === 'function' && newtabEnabled() ? NEWTAB_URL : currentEngine().home;
 }
 
 function updateOmnibarPlaceholder() {
@@ -129,6 +130,13 @@ function renderOmniSuggest() {
     omniSuggest.classList.add('show');
 }
 
+// URL か、URL を打ちかけている途中に見える入力
+function looksLikeUrlInput(q) {
+    const t = q.trim();
+    return /^(h|ht|htt|https?|https?:\/{0,2}|www|www\.)$/i.test(t) || /^(https?:|www\.)/i.test(t)
+        || (!/\s/.test(t) && /[./:]/.test(t) && /^[\w.-]+\.[a-z]{2,}/i.test(t));
+}
+
 async function updateOmniSuggest() {
     const q = urlInput.value.trim();
     omniTyped = urlInput.value;
@@ -147,6 +155,13 @@ async function updateOmniSuggest() {
 
     if (!searchSuggestEnabled() || !window.electronAPI?.searchSuggest) return;
     if (activeTabId && isPrivateTab(activeTabId)) return; // シークレットタブでは、入力中の文字を検索候補のために送らない
+    // ▼ 修正：URL を貼り付けた・入力中の時も、その URL を検索候補のために検索エンジンへ送っていた。
+    //   Google はそれを「最近の検索」として覚えるため、調べていない URL が google.com の候補に出ていた。
+    //   URL・URL を打ちかけている途中（http・www.・ドメインらしい文字）は送らない
+    if (!isSearch || looksLikeUrlInput(q)) return;
+    // 1 文字ごとに送らないよう、入力が 0.15 秒止まってから取りに行く
+    await new Promise(r => setTimeout(r, 150));
+    if (seq !== omniSeq) return;
     const remote = await window.electronAPI.searchSuggest(engine.id, q);
     if (seq !== omniSeq) return; // 入力が進んでいたら捨てる
     const suggestions = remote.filter(s => s.toLowerCase() !== q.toLowerCase()).slice(0, 5)
@@ -189,7 +204,7 @@ urlInput.addEventListener('keydown', (e) => {
         commitOmnibox(open && omniSelected > 0 ? omniItems[omniSelected] : null);
     } else if (e.key === 'Escape') {
         if (open) { e.preventDefault(); closeOmniSuggest(); urlInput.value = omniTyped; }
-        else { const card = activeTabId && getTabCard(activeTabId); if (card) urlInput.value = card.getAttribute('data-url') || ''; urlInput.blur(); }
+        else { const card = activeTabId && getTabCard(activeTabId); if (card) urlInput.value = displayUrl(card.getAttribute('data-url')); urlInput.blur(); }
     }
 });
 
@@ -201,3 +216,65 @@ omniSuggest.addEventListener('mousedown', (e) => {
 });
 
 updateOmnibarPlaceholder();
+
+// ==========================================
+// ▼ 追加：アドレスバーの検索エンジンのボタン（Brave などと同じく、アイコンを押すと切り替えられる）
+// ==========================================
+// シークレットタブを表示中は、シークレット用の検索エンジンを切り替える
+const engineBtn = document.getElementById('engine-btn');
+const engineMenu = document.getElementById('engine-menu');
+const omnibarPill = document.getElementById('omnibar-pill');
+
+function engineIconHtml(engine) {
+    return siteIconHtml(engine.home, '', 'engine-icon');
+}
+function chooseEngine(id) {
+    if (!SEARCH_ENGINES.some(e => e.id === id)) return;
+    if (activeTabId && isPrivateTab(activeTabId)) setPrivateEngine(id); else setSearchEngine(id);
+    renderEngineButton();
+    if (typeof renderSearchSettings === 'function') renderSearchSettings();
+    if (typeof pushNewTab === 'function' && activeTabId) pushNewTab(activeTabId);
+}
+function renderEngineButton() {
+    const e = currentEngine();
+    engineBtn.innerHTML = engineIconHtml(e);
+    engineBtn.title = `${e.name}（押すと検索エンジンを切り替え）`;
+    updateOmnibarPlaceholder();
+    updateEngineVisibility();
+}
+// 入力中か、新しいタブ（URL 欄が空）の時だけ出す。ふだんは盾アイコンの隣を広く使う
+function updateEngineVisibility() {
+    const show = document.activeElement === urlInput || !urlInput.value || engineMenu.classList.contains('show');
+    omnibarPill.classList.toggle('show-engine', show);
+}
+function openEngineMenu() {
+    const cur = currentEngine().id;
+    const priv = activeTabId && isPrivateTab(activeTabId);
+    engineMenu.innerHTML = `<div class="engine-menu-title">${priv ? 'シークレットタブの検索エンジン' : '検索エンジン'}</div>` + SEARCH_ENGINES.map(e =>
+        `<div class="engine-item${e.id === cur ? ' on' : ''}" data-engine-id="${e.id}" role="menuitemradio" aria-checked="${e.id === cur}">${engineIconHtml(e)}<span>${escapeHtml(e.name)}</span>${e.id === cur ? '<b>✓</b>' : ''}</div>`).join('');
+    closeOmniSuggest();
+    engineMenu.classList.add('show');
+    updateEngineVisibility();
+}
+function closeEngineMenu() { engineMenu.classList.remove('show'); updateEngineVisibility(); }
+engineBtn.addEventListener('mousedown', (e) => e.preventDefault()); // URL 欄のフォーカスを外さない
+engineBtn.addEventListener('click', (e) => { e.stopPropagation(); engineMenu.classList.contains('show') ? closeEngineMenu() : openEngineMenu(); });
+engineMenu.addEventListener('mousedown', (e) => e.preventDefault());
+engineMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('[data-engine-id]');
+    if (!item) return;
+    chooseEngine(item.dataset.engineId);
+    closeEngineMenu();
+    urlInput.focus();
+    if (urlInput.value.trim()) updateOmniSuggest();   // 入力中なら、新しい検索エンジンで候補を出し直す
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('#engine-menu, #engine-btn')) closeEngineMenu(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && engineMenu.classList.contains('show')) closeEngineMenu(); });
+urlInput.addEventListener('focus', updateEngineVisibility);
+urlInput.addEventListener('blur', () => setTimeout(updateEngineVisibility, 160));
+urlInput.addEventListener('input', updateEngineVisibility);
+// タブを切り替えた時（シークレットタブは検索エンジンが違うことがある）・別ウィンドウで変えた時
+const _updateOmnibarPlaceholder = updateOmnibarPlaceholder;
+updateOmnibarPlaceholder = function () { _updateOmnibarPlaceholder(); const e = currentEngine(); if (engineBtn.dataset.id !== e.id) { engineBtn.dataset.id = e.id; engineBtn.innerHTML = engineIconHtml(e); engineBtn.title = `${e.name}（押すと検索エンジンを切り替え）`; } setTimeout(updateEngineVisibility, 0); };
+renderEngineButton();
+tabUrlChangeHooks.push(() => setTimeout(updateEngineVisibility, 0));

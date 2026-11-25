@@ -70,7 +70,8 @@ function removeIpcGuard() {
 }
 
 // ---------- 2〜4. ウィンドウ・webview の制限 ----------
-const ALLOWED_WEBVIEW_SRC = /^(https?:|about:blank|view-source:https?:|chrome-extension:)/i;
+// archyndium://newtab/ … アプリ同梱の新しいタブのページ（main/newtab-protocol.js）
+const ALLOWED_WEBVIEW_SRC = /^(https?:|about:blank|view-source:https?:|chrome-extension:|archyndium:\/\/newtab\/)/i;
 
 function hardenContents(contents) {
   if (contents.getType() !== 'window') return;

@@ -59,6 +59,7 @@ function updateMarquee() {
 window.electronAPI.onSyncFromMain((data) => {
   if (data.accent) document.documentElement.style.setProperty('--accent', data.accent);
   mp.classList.toggle('playing', !!data.isPlaying);
+  syncVolumeFromMain(data.volume);
 
   const title = data.title || 'No Media Playing';
   if (title !== currentTitle) { currentTitle = title; $('track-title').textContent = title; updateMarquee(); }
@@ -113,7 +114,24 @@ window.electronAPI.onSyncFromMain((data) => {
 // ---- 音量：ホイールで調整 / クリックでミュート ----
 const volBtn = $('btn-volume'), volIcon = $('vol-icon'), volToast = $('vol-toast');
 let currentVol = 1.0, isMuted = false, preMuteVol = 1.0, toastTimeout;
+let volChangedAt = 0;
+// 本体・サイト側で変えた音量を、送り返さずに表示だけそろえる
+function showVolumeIcon(vol) {
+  if (vol === 0 || isMuted) volIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';
+  else if (vol < 0.5) volIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
+  else volIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
+  volBtn.classList.toggle('on', isMuted);
+}
+function syncVolumeFromMain(vol) {
+  if (typeof vol !== 'number' || Date.now() - volChangedAt < 1200) return;   // 自分で変えた直後は待つ
+  const shown = isMuted ? 0 : currentVol;
+  if (Math.abs(vol - shown) < 0.005) return;
+  if (vol === 0) { if (!isMuted) { preMuteVol = currentVol; isMuted = true; } }
+  else { isMuted = false; currentVol = vol; }
+  showVolumeIcon(currentVol);
+}
 function updateVolumeUI(vol) {
+  volChangedAt = Date.now();
   if (vol === 0 || isMuted) volIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';
   else if (vol < 0.5) volIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
   else volIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
@@ -138,3 +156,31 @@ volBtn.addEventListener('click', () => {
 
 // ▼ 変更：上段（ジャケット・曲名のあたり）を掴んで動かす
 setupWindowDrag({ handles: '.drag' });
+
+// ---- ▼ 追加：ガラスモード（本体と同じ保存場所。次に開いた時も同じ状態） ----
+const GLASS_KEY = 'archyndium_mini_glass';
+function applyGlass(on) {
+  mp.classList.toggle('glass', on);
+  $('btn-glass').classList.toggle('on', on);
+  try { localStorage.setItem(GLASS_KEY, on ? 'on' : 'off'); } catch (e) {}
+}
+applyGlass((() => { try { return localStorage.getItem(GLASS_KEY) === 'on'; } catch (e) { return false; } })());
+$('btn-glass').addEventListener('click', () => applyGlass(!mp.classList.contains('glass')));
+
+// ---- ▼ 追加：右下の角・右端をドラッグして大きさを変える（歌詞を閉じている時は幅だけ） ----
+function startResize(e, widthOnly) {
+  e.preventDefault(); e.stopPropagation();
+  const el = e.currentTarget;
+  el.setPointerCapture(e.pointerId);
+  const sx = e.screenX, sy = e.screenY, w0 = window.innerWidth, h0 = window.innerHeight;
+  let raf = 0, next = null;
+  const move = (ev) => {
+    next = { width: Math.round(w0 + ev.screenX - sx), height: Math.round(h0 + ev.screenY - sy), expanded: mp.classList.contains('expanded'), widthOnly: widthOnly || !mp.classList.contains('expanded') };
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; window.electronAPI.miniResize?.(next); });
+  };
+  const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); if (next) window.electronAPI.miniResize?.({ ...next, done: true }); };
+  el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+}
+$('resize-grip').addEventListener('pointerdown', (e) => startResize(e, false));
+$('resize-edge').addEventListener('pointerdown', (e) => startResize(e, true));
+window.addEventListener('resize', () => updateMarquee());

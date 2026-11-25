@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <!-- ▼ セキュリティ：この画面で動くスクリプトはアプリ内のファイルだけに限定（万一ページのタイトル等から HTML が混入しても実行されない） -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; media-src 'self' blob: data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http: archyndium:; media-src 'self' blob: data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ARCHYNDIUM Browser</title>
 <link rel="stylesheet" href="renderer/styles.css">
@@ -121,6 +121,8 @@
           <div id="lyrics-options"></div>
           <div class="list-section-title">Shield - 例外サイト</div>
           <div id="shield-site-list"></div>
+          <div class="list-section-title">Privacy - サイトのデータ</div>
+          <div id="sitedata-options"></div>
           <div class="list-section-title">Browser - 既定のブラウザ・ブックマーク</div>
           <div id="browser-options"></div>
           <div class="list-section-title">Extensions - 拡張機能</div>
@@ -237,6 +239,9 @@
         <div class="glass-pill omnibar-pill" id="omnibar-pill">
           <div class="icon-btn active-shield" id="btn-shield"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></div>
           <span class="private-indicator" title="シークレットタブ：履歴・Cookie・キャッシュは閉じると消えます">PRIVATE</span>
+          <!-- ▼ 追加：今の検索エンジン。押すと一覧から切り替えられる（入力中・新しいタブの時に表示） -->
+          <div class="engine-btn" id="engine-btn" title="検索エンジンを切り替え"></div>
+          <div class="engine-menu" id="engine-menu" role="menu"></div>
           <input type="text" id="url-input" class="url-input" value="" spellcheck="false" autocomplete="off">
           <div class="omni-suggest" id="omni-suggest"></div>
           <span class="zoom-indicator" id="zoom-indicator" title="クリックで 100% に戻す"></span>
@@ -423,6 +428,7 @@
 <script src="renderer/fx/fx-core.js"></script>
 <script src="renderer/fx/season.js"></script>
 <script src="renderer/fx/tab-motion.js"></script>
+<script src="renderer/newtab-host.js"></script>
 <script src="renderer/search.js"></script>
 <script src="renderer/dialog.js"></script>
 <script src="renderer/tabs.js"></script>

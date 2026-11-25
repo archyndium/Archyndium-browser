@@ -16,18 +16,51 @@ function saveWorkspaces() {
     localStorage.setItem('archyndium_workspaces', JSON.stringify(workspaces));
 }
 
+// 初期内容。urls の順番がフォルダの中の並び順。titles は表示名
+function defaultWorkspaces() {
+    const folder = (id, name, color, items) => ({
+        id, name, color, icon: name[0], urls: items.map(i => i[0]), icons: {},
+        titles: Object.fromEntries(items.map(i => [i[0], i[1]])),
+    });
+    return [
+        folder('ws-google', 'Google', '#4285F4', [
+            ['https://mail.google.com/', 'Gmail'],
+            ['https://www.youtube.com/', 'YouTube'],
+            ['https://drive.google.com/', 'Google ドライブ'],
+            ['https://calendar.google.com/', 'Google カレンダー'],
+            ['https://maps.google.com/', 'Google マップ'],
+            ['https://photos.google.com/', 'Google フォト'],
+        ]),
+        folder('ws-microsoft', 'Microsoft', '#0078D4', [
+            ['https://outlook.live.com/', 'Outlook'],
+            ['https://onedrive.live.com/', 'OneDrive'],
+            ['https://www.microsoft365.com/', 'Microsoft 365'],
+            ['https://teams.microsoft.com/', 'Teams'],
+            ['https://copilot.microsoft.com/', 'Copilot'],
+        ]),
+        folder('ws-social', 'Social', '#E1306C', [
+            ['https://x.com/', 'X'],
+            ['https://www.instagram.com/', 'Instagram'],
+            ['https://www.tiktok.com/', 'TikTok'],
+            ['https://www.facebook.com/', 'Facebook'],
+            ['https://discord.com/app', 'Discord'],
+        ]),
+    ];
+}
+
 function loadWorkspaces() {
     try {
         const stored = localStorage.getItem('archyndium_workspaces');
         if (stored) workspaces = JSON.parse(stored);
     } catch(e) {}
 
-    if (!workspaces || workspaces.length === 0) {
-        // 初回起動時のデフォルトアプリアイコン
-        workspaces = [
-            { id: 'ws-dev', name: 'Dev', color: '#25C2A0', icon: 'D', urls: ['https://github.com'] },
-            { id: 'ws-social', name: 'Social', color: '#1DA1F2', icon: 'S', urls: ['https://twitter.com'] }
-        ];
+    // ▼ 変更：初回起動時の内容を「Google」「Microsoft」「Social」の 3 つのフォルダにした。
+    //   以前の初期内容（Dev = GitHub / Social = Twitter）から何も変えていない人も、新しい内容に入れ替える
+    const isOldDefault = Array.isArray(workspaces) && workspaces.length === 2
+        && workspaces[0]?.id === 'ws-dev' && JSON.stringify(workspaces[0].urls) === '["https://github.com"]'
+        && workspaces[1]?.id === 'ws-social' && JSON.stringify(workspaces[1].urls) === '["https://twitter.com"]';
+    if (!workspaces || workspaces.length === 0 || isOldDefault) {
+        workspaces = defaultWorkspaces();
         saveWorkspaces();
     }
     workspaces.forEach(ws => { ws.icons = ws.icons || {}; ws.titles = ws.titles || {}; });

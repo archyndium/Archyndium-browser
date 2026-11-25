@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<!-- 新しいタブのページ（案 B：波形のステージ）。アプリに同梱し、archyndium://newtab/ で開く（main/newtab-protocol.js） -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https:; base-uri 'none'; form-action 'none'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>新しいタブ</title>
+<link rel="icon" href="mark.svg">
+<link rel="stylesheet" href="newtab.css">
+</head>
+<body>
+<main class="page" id="page">
+  <header class="head">
+    <span class="mark"><img src="mark.svg" alt="" width="24" height="24">ARCHYNDIUM</span>
+    <span class="private" id="private" hidden>シークレットタブ</span>
+    <span class="shield" id="shield" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg><span>起動してから <strong id="shieldCount">0</strong> 件をブロック</span></span>
+  </header>
+  <div class="center">
+    <h1 class="greet" id="greet"></h1>
+    <form class="search" id="search" role="search">
+      <button type="button" class="engine" id="engine" aria-haspopup="menu" aria-expanded="false" title="検索エンジンを切り替え"></button>
+      <div class="engine-menu" id="engineMenu" role="menu"></div>
+      <input id="q" type="search" autocomplete="off" spellcheck="false" placeholder="検索、または URL を入力" aria-label="検索、または URL を入力">
+    </form>
+    <nav class="chips" id="chips" aria-label="Work / Focus"></nav>
+  </div>
+  <div class="stage" aria-hidden="true"><canvas id="wave"></canvas></div>
+  <section class="now" id="now" hidden>
+    <small id="nowHead"></small>
+    <p id="nowLine"></p>
+    <button type="button" id="nowPlay"></button>
+  </section>
+</main>
+<script src="newtab.js"></script>
+</body>
+</html>
