@@ -42,7 +42,7 @@ function applyLayout() {
 }
 
 // ---------- タブバーの描画（サイドバーの状態を映す） ----------
-let tsDragging = null, tsRenderQueued = false, tsKnown = new Set();
+let tsDragging = null, tsRenderQueued = false, tsKnown = new Set(), tsGeoKey = '';
 const tsEsc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 function tsTabHtml(card, group) {
@@ -85,14 +85,16 @@ function renderTabstrip() {
     document.body.classList.toggle('private-active', !!activeTabId && isPrivateTab(activeTabId));
     tsKnown = seen;
     const active = tsTabsEl.querySelector('.ts-tab.active');
-    if (active) {   // 表示中のタブが見えるようにスクロール
-        const a = active.offsetLeft, b = a + active.offsetWidth;
-        if (a < tsTabsEl.scrollLeft) tsTabsEl.scrollLeft = a - 8;
-        else if (b > tsTabsEl.scrollLeft + tsTabsEl.clientWidth) tsTabsEl.scrollLeft = b - tsTabsEl.clientWidth + 8;
-    }
+    if (active && tsTabsEl.scrollWidth > tsTabsEl.clientWidth + 1) {   // 表示中のタブが見えるようにスクロール（はみ出している時だけ）
+        // ▼ 修正：以前は offsetLeft（タブバーの左の余白を含む位置）で計算していたため、タブを押すたびに少し左へずれていた
+        const box = tsTabsEl.getBoundingClientRect(), r = active.getBoundingClientRect();
+        if (r.left < box.left) tsTabsEl.scrollLeft -= box.left - r.left + 8;
+        else if (r.right > box.right) tsTabsEl.scrollLeft += r.right - box.right + 8;
+    } else if (tsTabsEl.scrollLeft) tsTabsEl.scrollLeft = 0;
     requestAnimationFrame(() => FX.emit('tabs-changed'));
     // ▼ 修正：タブの数や幅が変わると、ウィンドウを掴める範囲がずれて残ることがあった（右上のボタンの左側など）
-    if (typeof refreshDragRegions === 'function') { refreshDragRegions(); setTimeout(refreshDragRegions, 300); }
+    const geoKey = [...tsTabsEl.children].map(el => el.offsetWidth).join(',') + '|' + tsTabsEl.offsetWidth;
+    if (geoKey !== tsGeoKey && typeof refreshDragRegions === 'function') { tsGeoKey = geoKey; refreshDragRegions(); setTimeout(refreshDragRegions, 300); }
 }
 function queueTabstrip() { if (!tsRenderQueued) { tsRenderQueued = true; requestAnimationFrame(renderTabstrip); } }
 

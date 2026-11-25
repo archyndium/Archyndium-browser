@@ -83,8 +83,15 @@ if (document.body.classList.contains('opaque-window')) {
   window.addEventListener('resize', () => { clearTimeout(window.__dragRegionTimer); window.__dragRegionTimer = setTimeout(refreshDragRegions, 150); });
   document.addEventListener('transitionend', (e) => { if (e.target.id === 'command-center') refreshDragRegions(); });
 }
-if (!document.body.classList.contains('opaque-window')) {
-  setupWindowDrag({ handles: '.header-drag-area, .command-header, .command-header-area, .ts-drag, .tabstrip', maximizeOnDoubleClick: true });
+// ▼ 変更：不透明なウィンドウでも、アプリ自身で動かす処理を「予備」として入れておく。
+//   Windows 標準の移動が効いている場所では、押した時点で Windows が受け取るので、画面側にはマウスの操作が届かない。
+//   画面側に届いた ＝ 掴める範囲が古いまま残っていた場所なので、そこではアプリ自身で動かし、範囲も作り直す。
+//   こうすると、空いている所はいつでも掴める
+setupWindowDrag({ handles: '.header-drag-area, .command-header, .command-header-area, .ts-drag, .tabstrip', maximizeOnDoubleClick: true });
+if (document.body.classList.contains('opaque-window')) {
+  document.addEventListener('mousedown', (e) => {
+    if (e.target instanceof Element && e.target.closest('.tabstrip, .header-drag-area, .command-header-area') && !e.target.closest('.ts-tab, .ts-group, .ts-new, .window-controls, button, input')) refreshDragRegions();
+  }, true);
 }
 
 // ▼ 追加：タブの URL が変わった時に呼ばれる処理の登録先（拡張機能のストア検知・DRM の案内など）
