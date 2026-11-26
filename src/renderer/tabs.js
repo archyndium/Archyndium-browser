@@ -337,6 +337,7 @@ function createWebviewForTab(tabId, url) {
 
     wv.addEventListener('did-navigate-in-page', (e) => {
         const currentUrl = e.url;
+        if (e.isMainFrame !== false && typeof onTranslateInPageNavigate === 'function') onTranslateInPageNavigate(tabId);
         const tabCard = document.querySelector(`.tab-card[data-tab-id="${tabId}"]`);
         if (tabCard) tabCard.setAttribute('data-url', currentUrl);
         if (tabId === activeTabId) urlInput.value = displayUrl(currentUrl);

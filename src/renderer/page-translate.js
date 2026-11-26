@@ -24,14 +24,19 @@ refreshModelStatus();
 function detectLang(sample, htmlLang) {
     const t = (sample || '').replace(/\s+/g, '');
     if (!t) return null;
-    const kana = (t.match(/[぀-ヿ]/g) || []).length;
-    const cjk = (t.match(/[一-鿿]/g) || []).length;
-    const hangul = (t.match(/[가-힯]/g) || []).length;
+    const kana = (t.match(/[\u3040-\u30FF]/g) || []).length;
+    const cjk = (t.match(/[\u4E00-\u9FFF]/g) || []).length;
+    const hangul = (t.match(/[\uAC00-\uD7AF]/g) || []).length;
     const latin = (t.match(/[A-Za-z]/g) || []).length;
-    if (kana > t.length * 0.02 || (htmlLang.startsWith('ja') && kana + cjk > t.length * 0.1)) return 'ja';
-    if (hangul > latin) return 'ko';
-    if (cjk > latin) return 'zh';
-    if (latin > t.length * 0.3) return htmlLang && !htmlLang.startsWith('en') ? htmlLang.slice(0, 2) : 'en';
+    // ▼ 修正：以前は日本語が少しでもあると「日本語のページ」にしていたため、メニューだけ日本語で本文が英語の
+    //   ページ（日本語表示の Reddit など）で翻訳のボタンが出なかった。文字の量を比べて決める。
+    //   日本語は 1 文字 = 1 語に近く、英語は 1 語 = 約 5 文字なので、英字は 1/4 にして比べる
+    const ja = kana > 0 ? kana + cjk : 0;
+    const words = latin / 4;
+    if (ja > words && ja > 20) return 'ja';
+    if (hangul > words && hangul > 20) return 'ko';
+    if (cjk > words && cjk > 20) return 'zh';
+    if (latin > 80) return htmlLang && !htmlLang.startsWith('en') && !htmlLang.startsWith('ja') ? htmlLang.slice(0, 2) : 'en';
     return null;
 }
 const pairFor = (from, to) => (from && to && from !== to && trModelStatus[`${from}-${to}`]) ? `${from}-${to}` : null;
@@ -65,6 +70,9 @@ function batchesOf(items) {
 }
 async function translateItems(tabId, gen, from, to, items) {
     const st = trState(tabId);
+    // すでに訳す先の言語で書かれている部分（英語のページの中の日本語のメニューなど）は訳さない
+    const already = to === 'ja' ? /[\u3040-\u30FF]/ : from === 'ja' ? /^[^\u3040-\u30FF\u4E00-\u9FFF]*$/ : null;
+    if (already) { const keep = items.filter(it => !already.test(it.text)); st.done += items.length - keep.length; items = keep; }
     for (const batch of batchesOf(items)) {
         if (st.gen !== gen || !st.translated) return;
         const res = await window.electronAPI.translateTexts({ from, to, texts: batch.map(b => b.text) });
@@ -181,9 +189,19 @@ function onTranslateNavigate(tabId) {
     st.translated = false; st.gen++; clearInterval(st.poll); st.lang = null; st.done = st.total = 0;
     if (tabId === activeTabId) { updateTranslateButton(); closeTrPopover(); }
 }
+// ページの中だけの移動（Reddit・YouTube などの SPA）でも、少し待ってから判定し直す
+function onTranslateInPageNavigate(tabId) {
+    const st = trState(tabId);
+    if (st.translated) return;   // 翻訳中なら、増えた部分は自動で訳される
+    clearTimeout(st.redetect);
+    st.redetect = setTimeout(() => detectTabLang(tabId), 1500);
+}
 async function onTranslateDomReady(tabId) {
     const st = trState(tabId);
     await detectTabLang(tabId);
+    // 本文が後から読み込まれるページのために、もう一度判定する
+    clearTimeout(st.redetect);
+    st.redetect = setTimeout(() => detectTabLang(tabId), 2500);
     if (st.subs) setSubtitles(tabId, true);   // 字幕の翻訳はページを移っても続ける
     const s = trSettings();
     // 「外国語のページを自動で翻訳」：端末内の翻訳で、モデルが入っている時だけ（勝手にダウンロードしない）
@@ -293,3 +311,11 @@ document.getElementById('panel-settings').addEventListener('click', async (e) =>
     const del = t.closest('[data-tr-del]'); if (del) { await window.electronAPI.translateDeleteModel(del.dataset.trDel); renderTranslateSettings(); }
 });
 document.querySelector('.tool-icon[data-panel="panel-settings"]').addEventListener('click', renderTranslateSettings);
+
+// ▼ 追加：ページの右クリックメニュー（main/context-menu.js）から
+window.electronAPI?.onPageAction?.(({ action, webContentsId }) => {
+    if (action !== 'translate-page' && action !== 'translate-subs') return;
+    const tabId = Object.keys(webviews).find(id => { try { return webviews[id].getWebContentsId() === webContentsId; } catch (e) { return false; } }) || activeTabId;
+    if (action === 'translate-page') { const st = trState(tabId); st.translated ? restoreTab(tabId) : translateTab(tabId); }
+    else setSubtitles(tabId, !trState(tabId).subs);
+});

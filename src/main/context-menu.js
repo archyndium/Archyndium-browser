@@ -103,6 +103,8 @@ function attach(contents) {
     // ▼ 追加：コピーできないページ向け（選択した文字が無い時も、ある時も出す）
     if (!params.isEditable) {
       items.push(
+        { label: 'このページを翻訳', click: () => windows.sendTo(win, 'page-action', { action: 'translate-page', webContentsId: contents.id }) },
+        { label: '動画の字幕を翻訳（オン / オフ）', click: () => windows.sendTo(win, 'page-action', { action: 'translate-subs', webContentsId: contents.id }) },
         { label: 'このサイトのコピー制限を解除', click: () => windows.sendTo(win, 'page-action', { action: 'unlock-copy', webContentsId: contents.id }) },
         { label: 'ページの文字を取り出す', click: () => windows.sendTo(win, 'page-action', { action: 'extract-text', webContentsId: contents.id }) },
         sep,

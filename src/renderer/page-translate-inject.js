@@ -53,6 +53,24 @@ function __arcPageTranslateScript() {
     });
     return out;
   }
+  // ▼ 追加：開いたシャドウ DOM（Reddit などの部品）の中も探す
+  function shadowHosts(root) {
+    const out = [];
+    const all = root.querySelectorAll ? root.querySelectorAll('*') : [];
+    for (const el of all) if (el.shadowRoot && el.shadowRoot.mode === 'open') out.push(el.shadowRoot);
+    return out;
+  }
+  function shadowText(root, max) {
+    let t = '';
+    const walk = (r, depth) => { if (depth > 4 || t.length > max) return; shadowHosts(r).forEach(sr => { t += ' ' + (sr.textContent || '').replace(/\s+/g, ' '); walk(sr, depth + 1); }); };
+    walk(root, 0);
+    return t.slice(0, max);
+  }
+  function collectDeep(root, depth = 0) {
+    const ids = collectFrom(root);
+    if (depth < 4) shadowHosts(root).forEach(sr => ids.push(...collectDeep(sr, depth + 1)));
+    return ids;
+  }
   const visibleFirst = (ids) => {
     const vh = innerHeight;
     return ids.map(id => {
@@ -64,11 +82,14 @@ function __arcPageTranslateScript() {
 
   window.__arcTr = {
     detect() {
-      const t = (document.body && document.body.innerText || '').slice(0, 3000);
+      // 本文の部分を優先して、シャドウ DOM の中の文字も含めて調べる
+      const main = document.querySelector('main, [role="main"], article') || document.body;
+      let t = (main && main.innerText || '').slice(0, 6000);
+      if (t.length < 400) t += ' ' + shadowText(document.body, 6000);
       return { lang: (document.documentElement.lang || '').toLowerCase(), sample: t };
     },
     collect(limit = 4000) {
-      const ids = visibleFirst(collectFrom(document.body)).slice(0, limit);
+      const ids = visibleFirst(collectDeep(document.body)).slice(0, limit);
       if (!observer) {
         observer = new MutationObserver((muts) => {
           muts.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1 && !n.closest?.('.arc-sub')) fresh.push(n); else if (n.nodeType === 3) fresh.push(n.parentElement); }));
@@ -80,7 +101,7 @@ function __arcPageTranslateScript() {
     takeNew() {
       const roots = fresh.splice(0).filter(r => r && r.isConnected);
       const ids = [];
-      roots.forEach(r => ids.push(...collectFrom(r)));
+      roots.forEach(r => ids.push(...collectDeep(r)));
       return visibleFirst(ids).map(id => ({ id, text: groups[id].text }));
     },
     apply(results) {
