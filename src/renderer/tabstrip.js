@@ -18,8 +18,11 @@ const npChipEl = document.getElementById('np-chip');
 
 function layoutSettings() {
     let s = {}; try { s = JSON.parse(localStorage.getItem(LAYOUT_KEY)) || {}; } catch (e) {}
-    return { tabs: s.tabs || 'top', lyricLine: s.lyricLine ?? true, tint: s.tint ?? 14 };
+    return { tabs: s.tabs || 'top', lyricLine: s.lyricLine ?? true, autoLyrics: s.autoLyrics ?? true, tint: s.tint ?? 14 };
 }
+// ▼ 追加：曲が始まった・次の曲になった時に、歌詞パネルを開かなくても歌詞を自動で取りに行くか（audio.js の syncTick から）
+//   上タブで「歌詞を 1 行表示」がオンの時だけ。新しいタブのページの歌詞表示にも使われる
+function autoLyricsEnabled() { const s = layoutSettings(); return s.tabs === 'top' && s.lyricLine && s.autoLyrics; }
 function setLayoutSetting(key, value) {
     const s = layoutSettings(); s[key] = value;
     try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(s)); } catch (e) {}
@@ -363,6 +366,7 @@ function renderLayoutSettings() {
         settingRow({ icon: '▭', label: 'タブを上に並べる', sub: 'Work / Focus などは左上のボタンで開閉', checked: s.tabs === 'top', attrs: 'data-layout-tabs="top"' }) +
         settingRow({ icon: '▯', label: 'タブをサイドバーに並べる', sub: '以前の形', checked: s.tabs === 'side', attrs: 'data-layout-tabs="side"' }) +
         (s.tabs === 'top' ? settingRow({ icon: '♪', label: 'アドレスバーの下に歌詞を 1 行表示', sub: 'クリックで歌詞の全文', checked: s.lyricLine, attrs: 'data-layout-lyric="1"' }) +
+        (s.lyricLine ? settingRow({ icon: '↻', label: '曲が変わったら歌詞を自動で表示', sub: '歌詞ボタンを押さなくても取得します（曲名で歌詞サイトを検索します）', checked: s.autoLyrics, attrs: 'data-layout-autolyrics="1"' }) : '') +
         `<label class="fx-param fx-param-inline"><span class="fx-param-label">タブバーの色づけ（テーマ色）</span><output>${s.tint}%</output>
             <input type="range" min="0" max="40" step="1" value="${s.tint}" data-layout-tint="1"></label>` : '');
 }
@@ -370,6 +374,11 @@ document.getElementById('panel-settings').addEventListener('click', (e) => {
     const tabs = e.target.closest('[data-layout-tabs]');
     if (tabs) { setLayoutSetting('tabs', tabs.dataset.layoutTabs); renderLayoutSettings(); if (typeof renderFxSettings === 'function') renderFxSettings(); return; }
     if (e.target.closest('[data-layout-lyric]')) { setLayoutSetting('lyricLine', !layoutSettings().lyricLine); renderLayoutSettings(); }
+    if (e.target.closest('[data-layout-autolyrics]')) {
+        setLayoutSetting('autoLyrics', !layoutSettings().autoLyrics); renderLayoutSettings();
+        // オンにした時、再生中の曲の歌詞がまだ無ければすぐに取りに行く
+        if (autoLyricsEnabled() && !currentLyricsText && typeof autoFetchLyrics === 'function') autoFetchLyrics(nowPlayingTitle.textContent);
+    }
 });
 document.getElementById('panel-settings').addEventListener('input', (e) => {
     const r = e.target.closest('[data-layout-tint]'); if (!r) return;

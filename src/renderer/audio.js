@@ -174,7 +174,8 @@ function syncTick() {
     currentLyricsSyncManual = false;
     // ▼ 修正：本体の歌詞パネルが閉じていても、ミニプレイヤーが開いていれば新しい曲の歌詞を取りに行く
     //   （以前はパネルが開いている時だけだったので、ミニプレイヤーで次の曲にすると前の曲の歌詞のままだった）
-    if (document.getElementById('lyrics-panel').classList.contains('show') || miniPlayerOpen) {
+    // ▼ 追加：設定「曲が変わったら歌詞を自動で表示」がオンなら、パネルが閉じていても取りに行く（歌詞の 1 行用）
+    if (document.getElementById('lyrics-panel').classList.contains('show') || miniPlayerOpen || (typeof autoLyricsEnabled === 'function' && autoLyricsEnabled())) {
       autoFetchLyrics(newTitle);
     } else {
       clearLyrics(); // どちらも閉じている時は古い歌詞を残さない（次に開いた時に取得する）
