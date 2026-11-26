@@ -1341,3 +1341,24 @@ html.theme-light .translate-btn.on { color: var(--theme-base); }
   outline: 1.5px dashed color-mix(in srgb, var(--theme-light) 70%, transparent); outline-offset: -3px; pointer-events: none; animation: ts-incoming 0.18s cubic-bezier(0.2, 0.8, 0.2, 1); }
 @keyframes ts-incoming { from { width: 0; opacity: 0; } }
 body.tab-drop-target .tabstrip, body.tab-drop-target:not(.layout-top) .nexus { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--theme-light) 55%, transparent); }
+
+/* ▼ 追加：ウィンドウが細い時（Chrome・Brave と同じ）。入りきらないボタンは「»」にまとめ、タブはアイコンだけにする */
+.overflow-pill { display: none; }
+body.layout-top .overflow-pill.show { display: flex; }
+body.layout-top .tb-hidden { display: none !important; }
+.overflow-menu { position: fixed; z-index: 400; min-width: 220px; padding: 6px; border-radius: 12px; background: var(--bg-popover-glass); backdrop-filter: blur(30px);
+  border: 1px solid var(--border-subtle); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35); display: none; flex-direction: column; gap: 2px; }
+.overflow-menu.show { display: flex; }
+.overflow-item { display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border-radius: 8px; color: var(--text-primary); font-size: 13px; cursor: pointer; }
+.overflow-item:hover, .overflow-item:focus-visible { background: rgba(var(--ink), 0.08); outline: none; }
+.overflow-item .oi-icon { width: 18px; display: flex; justify-content: center; color: var(--text-muted); }
+.overflow-item .oi-icon svg { width: 16px; height: 16px; }
+.ts-tab { min-width: 36px; }
+.ts-tabs.ts-tight .ts-tab:not(.active):not(.pinned) { padding-right: 10px; }
+.ts-tabs.ts-tight .ts-tab:not(.active) .ts-x { display: none; }
+.ts-tabs.ts-narrow .ts-tab:not(.pinned) { padding: 0; justify-content: center; gap: 0; }
+.ts-tabs.ts-narrow .ts-tab .ts-title, .ts-tabs.ts-narrow .ts-tab .ts-audio { display: none; }
+.ts-tabs.ts-narrow .ts-tab:not(.active) .ts-x { display: none; }
+.ts-tabs.ts-narrow .ts-tab.active:not(.pinned) .favicon { display: none; }
+.ts-tabs.ts-narrow .ts-tab.active .ts-x { position: static; opacity: 1; }
+@media (max-width: 640px) { body.layout-top .ts-drag { min-width: 40px; } }

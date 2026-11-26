@@ -200,7 +200,7 @@ function renderDownloadBubble() {
 function openDownloadBubble() {
     checkDownloadFiles();
     renderDownloadBubble();
-    const r = btnDownloads.getBoundingClientRect();
+    const r = typeof toolbarAnchorRect === 'function' ? toolbarAnchorRect(btnDownloads) : btnDownloads.getBoundingClientRect();   // ▼ 変更：ボタンが「»」に入っている時はその下に出す
     dlBubble.style.top = `${r.bottom + 10}px`;
     dlBubble.style.right = `${Math.max(12, window.innerWidth - r.right - 8)}px`;
     dlBubble.classList.add('show');

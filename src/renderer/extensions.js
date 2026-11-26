@@ -41,7 +41,7 @@ function renderExtMenu() {
 
 function openExtMenu() {
     renderExtMenu();
-    const r = btnExtensions.getBoundingClientRect();
+    const r = typeof toolbarAnchorRect === 'function' ? toolbarAnchorRect(btnExtensions) : btnExtensions.getBoundingClientRect();   // ▼ 変更：ボタンが「»」に入っている時はその下に出す
     extMenu.style.top = `${r.bottom + 10}px`;
     extMenu.style.right = `${Math.max(12, window.innerWidth - r.right - 8)}px`;
     extMenu.classList.add('show');
@@ -79,13 +79,13 @@ extMenu.addEventListener('click', async (ev) => {
     if (!e || !e.loaded) return;
     closeExtMenu();
     if (e.hasPopup) {
-        const r = btnExtensions.getBoundingClientRect();
+        const r = typeof toolbarAnchorRect === 'function' ? toolbarAnchorRect(btnExtensions) : btnExtensions.getBoundingClientRect();   // ▼ 変更：ボタンが「»」に入っている時はその下に出す
         window.electronAPI.openExtensionPopup(e.key, { right: r.right, bottom: r.bottom });
     } else if (e.options) openExtensionOptions(e);
     else showToast(`${escapeHtml(e.name)} は開いたページで自動的に動作します`);
 });
 
-document.addEventListener('click', (ev) => { if (!ev.target.closest('.ext-menu, #btn-extensions')) closeExtMenu(); });
+document.addEventListener('click', (ev) => { if (!ev.target.closest('.ext-menu, #btn-extensions, #overflow-menu')) closeExtMenu(); });
 
 // ---------- 設定画面 ----------
 function renderExtensionSettings() {

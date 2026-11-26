@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (!session.hasTab) {
     // 別ウィンドウで開く URL・シークレット指定があればそれを使う（タブを別ウィンドウへ移動した時など）
     const initTab = await createNewTabElement(windowQuery.get('url') || getHomeUrl(), { isPrivate: windowQuery.get('private') === '1' });
+    if (windowQuery.get('resume')) resumeMediaInTab(initTab.getAttribute('data-tab-id'), windowQuery.get('resume'));   // ▼ 追加：切り離したタブの続きから再生
     document.getElementById('tabs-container').prepend(initTab);
     // UIのレイアウト計算が完全に終了するまで 0.15秒 待ってからタブを配置する（座標ズレを解消）
     setTimeout(() => initTab.click(), 150);

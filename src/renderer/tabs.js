@@ -445,6 +445,15 @@ async function openNewTab(url = getHomeUrl(), { background = false, isPrivate = 
     if (!background && url === getHomeUrl()) focusOmnibarForNewTab(newTab.getAttribute('data-tab-id'));
     return newTab;
 }
+// ▼ 追加：タブを別のウィンドウへ移した時、再生していた動画・音楽を同じ位置から続ける（読み込みが終わってから）
+function resumeMediaInTab(tabId, t) {
+    const wv = webviews[tabId];
+    t = Number(t);
+    if (!wv || !(t > 0)) return;
+    const js = `(() => { let n = 0; const go = () => { const m = [...document.querySelectorAll('video, audio')].find(v => v.duration > ${t}); if (m) { m.currentTime = ${t}; m.play().catch(() => {}); return; } if (++n < 60) setTimeout(go, 250); }; go(); })()`;
+    const once = () => { wv.removeEventListener('did-finish-load', once); wv.executeJavaScript(js).catch(() => {}); };
+    wv.addEventListener('did-finish-load', once);
+}
 function focusOmnibarForNewTab(tabId) {
     const pick = () => {
         if (activeTabId !== tabId) return;
@@ -494,7 +503,9 @@ function closeTab(tabId) {
     if (wasActive) {
         activeTabId = null;
         if (next) next.click();
-        else openNewTab(); // 最後のタブを閉じたら空のタブを1枚用意する
+        // ▼ 変更：最後のタブを閉じたら、新しいタブを作らずにウィンドウを閉じる（Chrome と同じ）
+        else if (window.electronAPI?.windowControl) window.electronAPI.windowControl('close');
+        else openNewTab();
     }
 }
 

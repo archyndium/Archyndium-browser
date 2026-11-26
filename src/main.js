@@ -23,7 +23,7 @@
 //   window-drag.js     ウィンドウを掴んで動かす（本体・ミニプレイヤー）
 //   compat.js          ブックマークの取り込み・既定のブラウザ・PDF 保存・DRM の状態
 //   updater.js         自動アップデート（GitHub Releases）
-const { app, BrowserWindow, session, screen } = require('electron');
+const { app, BrowserWindow, session, screen, dialog } = require('electron');
 const path = require('path');
 
 // ▼ セキュリティ：サンドボックス等はアプリの準備完了より前に設定する必要がある
@@ -91,7 +91,7 @@ function createWindow(query = {}, bounds = {}) {
   const opaque = appSettings.get('opaqueWindow') !== false;
   if (opaque) query = { ...query, opaque: '1' };
   const win = new BrowserWindow({
-    width: 1280, height: 800, ...bounds,
+    width: 1280, height: 800, minWidth: 420, minHeight: 320, ...bounds,   // ▼ 追加：これより小さくはしない
     frame: false,
     ...(opaque
       // 不透明：Windows の標準の枠（角の丸み・影・スナップ）を使う。描画が軽い
@@ -198,6 +198,17 @@ ipcMain.handle('move-tab-to-other-window', (event, { url, isPrivate } = {}) => {
   target.focus();
   return true;
 });
+// ▼ 追加：最後のウィンドウを × で閉じる時、タブが複数あれば「すべて閉じるか」を聞く
+ipcMain.handle('confirm-close-all', async (event, count) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  const n = Math.max(2, Number(count) || 2);
+  const { response } = await dialog.showMessageBox(win, {
+    type: 'question', buttons: ['すべて閉じる', 'キャンセル'], defaultId: 0, cancelId: 1, noLink: true,
+    title: 'ARCHYNDIUM', message: `${n} 個のタブをすべて閉じますか？`,
+    detail: '設定で「前回のタブを復元」がオンの場合は、次に起動した時に開き直されます。',
+  });
+  return response === 0;
+});
 ipcMain.on('window-count-sync', (event) => { event.returnValue = windows.count(); });
 
 // アプリごと終了する時は全ウィンドウを保存させたいので、「残りのウィンドウ数」を 1 として返す
@@ -228,7 +239,7 @@ linkPreview.init();
 newtabProtocol.init({ privatePartition: privateSession.PRIVATE_PARTITION });
 translator.init();
 ipcMain.handle('take-startup-urls', () => { const urls = startupUrls; startupUrls = []; return urls; });
-require('./main/tab-drag').init();   // ▼ 追加：タブを引き出している間の見た目
+require('./main/tab-drag').init({ createWindow });   // ▼ 追加：タブを引き出した瞬間に別のウィンドウにする
 security.removeIpcGuard();
 
 app.whenReady().then(async () => {

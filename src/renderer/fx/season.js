@@ -66,7 +66,7 @@
         if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr); }
         const tr = document.getElementById('ts-tabs').getBoundingClientRect();
         clip = { x0: tr.left - host.left, x1: tr.right - host.left };
-        geo = [...document.querySelectorAll('#ts-tabs .ts-tab:not(.ts-leave)')].map(el => {
+        geo = [...document.querySelectorAll('#ts-tabs .ts-tab:not(.ts-leave):not(.ts-incoming)')].map(el => {
             const b = el.getBoundingClientRect(), id = el.dataset.id;
             const x0 = b.left - host.left + 9, x1 = b.right - host.left - 9, n = Math.max(2, Math.floor((x1 - x0) / 2));
             let p = piles.get(id);

@@ -41,6 +41,7 @@ function applyLayout() {
     if (top) { commandCenter.classList.remove('collapsed'); document.body.classList.remove('panel-open'); renderTabstrip(); }
     else document.body.classList.remove('panel-open');
     updateLyricLine();
+    if (typeof updateToolbarOverflow === 'function' && overflowBtn) updateToolbarOverflow();
     if (changed) { FX.refreshAll(); FX.emit('layout'); }
 }
 
@@ -95,7 +96,7 @@ function renderTabstrip() {
         if (r.left < box.left) tsTabsEl.scrollLeft -= box.left - r.left + 8;
         else if (r.right > box.right) tsTabsEl.scrollLeft += r.right - box.right + 8;
     } else if (tsTabsEl.scrollLeft) tsTabsEl.scrollLeft = 0;
-    requestAnimationFrame(() => FX.emit('tabs-changed'));
+    requestAnimationFrame(() => { FX.emit('tabs-changed'); updateToolbarOverflow(); });
     // ▼ 修正：タブの数や幅が変わると、ウィンドウを掴める範囲がずれて残ることがあった（右上のボタンの左側など）
     const geoKey = [...tsTabsEl.children].map(el => el.offsetWidth).join(',') + '|' + tsTabsEl.offsetWidth;
     if (geoKey !== tsGeoKey && typeof refreshDragRegions === 'function') { tsGeoKey = geoKey; refreshDragRegions(); setTimeout(refreshDragRegions, 300); }
@@ -127,7 +128,8 @@ tsTabsEl.addEventListener('pointerdown', (e) => {
     tsDragging = { el: tab, id: tab.dataset.id, x0: e.clientX, y0: e.clientY, moved: false, pointerId: e.pointerId };
     tab.setPointerCapture(e.pointerId);
 });
-tsTabsEl.addEventListener('pointermove', (e) => {
+// ▼ 変更：ウィンドウ全体で受ける（ウィンドウを動かしている間にマウスのつかみが外れても、ドラッグを続けられるように）
+window.addEventListener('pointermove', (e) => {
     const d = tsDragging; if (!d) return;
     const dx = e.clientX - d.x0;
     if (!d.moved) {
@@ -137,12 +139,24 @@ tsTabsEl.addEventListener('pointermove', (e) => {
         d.el.classList.add('ts-dragging');
         d.lastX = e.clientX; d.lastT = performance.now();
     }
-    // ▼ 変更：タブバーから大きく離れた（ウィンドウの外・下へ引き出した）ら「切り離し」の見た目にし、並べ替えはしない。
-    //   離すと、別のウィンドウの上ならそのウィンドウへ、何も無い所なら新しいウィンドウになる
+    // ▼ 変更（Chrome と同じ）：タブが 1 枚だけのウィンドウは、タブをつかむとウィンドウごと動く
+    const live = tsLiveEnabled();
+    if (live && d.single === undefined) d.single = getTabCards().length <= 1;
+    if (live && d.single) {
+        if (!d.live) tsStartLive(d, e);
+        window.electronAPI.tabDragMove({ x: e.screenX, y: e.screenY, inside: false });
+        return;
+    }
+    // タブバーから引き出した瞬間に、そのタブを新しいウィンドウにする（離すまでマウスについてくる）。
+    // 元のタブバーに戻すとウィンドウは隠れ、ほかのウィンドウのタブバーに重ねるとそこに入る場所が開く
     const stripRect = tabstripEl.getBoundingClientRect();
-    const detached = e.clientY < -12 || e.clientY > stripRect.bottom + 56 || e.clientX < -12 || e.clientX > innerWidth + 12;
+    const detached = e.clientY < -12 || e.clientY > stripRect.bottom + 30 || e.clientX < -12 || e.clientX > innerWidth + 12;
     d.el.classList.toggle('ts-detach', detached);
-    tsDragGhost(d, e, detached);
+    if (live) {
+        if (detached && !d.live) tsStartLive(d, e);
+        d.el.classList.toggle('ts-out', detached && !!d.live);
+        if (d.live) window.electronAPI.tabDragMove({ x: e.screenX, y: e.screenY, inside: !detached });
+    }
     // タブはタブバーの中だけで動かす（画面の外まで飛んで、表示が崩れて見えないように）
     const tr = tsTabsEl.getBoundingClientRect(), er = d.el.getBoundingClientRect();
     const baseLeft = er.left - (parseFloat((d.el.style.transform.match(/translateX\((-?[\d.]+)/) || [0, 0])[1]) || 0);
@@ -167,39 +181,43 @@ tsTabsEl.addEventListener('pointermove', (e) => {
     d.el.style.transform = `translateX(${e.clientX - d.x0}px)`;
     FX.emit('tabs-changed');
 });
-// ▼ 追加：引き出している間は、元の場所を閉じて、タブとページの小さな画像をマウスにつける（main/tab-drag.js）。
-//   別のウィンドウの上では、そのウィンドウのタブバーに入る場所が開く。タブバーに戻すとゴーストは消える
-function tsDragGhost(d, e, detached) {
-    const api = window.electronAPI;
-    if (!api?.tabDragStart || typeof tabTearOffEnabled !== 'function' || !tabTearOffEnabled()) return;
-    if (detached && !d.ghost) {
-        d.ghost = true;
-        const cs = getComputedStyle(document.body);
-        let wcId = null; try { wcId = webviews[d.id]?.getWebContentsId?.() ?? null; } catch (err) {}
-        api.tabDragStart({
-            title: d.el.querySelector('.ts-title')?.textContent || '', webContentsId: wcId,
-            bg: cs.getPropertyValue('--bg-canvas').trim(), fg: cs.getPropertyValue('--text-primary').trim(), accent: cs.getPropertyValue('--theme-light').trim(),
-        });
-    }
-    d.el.classList.toggle('ts-out', detached && !!d.ghost);
-    if (d.ghost) api.tabDragMove({ x: e.screenX, y: e.screenY, inside: !detached });
+// ▼ 追加：タブの切り離し（main/tab-drag.js）。再生中の動画・音楽は一時停止して、新しいウィンドウで同じ位置から続ける
+const tsLiveEnabled = () => !!window.electronAPI?.tabDetach && typeof tabTearOffEnabled === 'function' && tabTearOffEnabled();
+const TS_PAUSE_MEDIA = `(() => { const m = [...document.querySelectorAll('video, audio')].find(v => !v.paused && v.duration > 0); if (!m) return 0; m.pause(); return m.currentTime || 0.01; })()`;
+function tsStartLive(d, e) {
+    const r = d.el.getBoundingClientRect();
+    const info = { x: e.screenX, y: e.screenY, grabX: e.clientX - r.left, grabY: e.clientY - r.top };
+    d.live = (async () => {
+        let resume = 0;
+        if (!d.single) { try { resume = Number(await webviews[d.id]?.executeJavaScript(TS_PAUSE_MEDIA)) || 0; } catch (err) {} }
+        d.resume = resume;
+        const card = getTabCard(d.id);
+        if (!card) return false;
+        return window.electronAPI.tabDetach({ ...info, url: card.getAttribute('data-url'), isPrivate: isPrivateTab(d.id), title: card.querySelector('.tab-title')?.textContent || '', single: !!d.single, resume });
+    })();
 }
 function tsEndDrag(e) {
     const d = tsDragging; if (!d) return;
     tsDragging = null;
     const detached = d.el.classList.contains('ts-detach');
     d.el.classList.remove('ts-dragging', 'ts-detach', 'ts-out'); d.el.style.transform = '';
-    const endGhost = () => { if (d.ghost) window.electronAPI?.tabDragEnd?.(); };
     if (!d.moved) { activateTab(d.id); return; }
-    if (!(detached && e && typeof tabTearOffEnabled === 'function' && tabTearOffEnabled())) endGhost();
-    // ▼ 変更：タブバーから引き出して離したら、別のウィンドウの上ならそこへ移し（ウィンドウに戻す）、
-    //   何も無い所ならその位置に新しいウィンドウを作る（設定でオンの時）
-    if (detached && e && typeof tabTearOffEnabled === 'function' && tabTearOffEnabled()) {
+    // ▼ 変更：切り離し中なら、離した場所で決まる（別のウィンドウへ移した / 新しいウィンドウのまま / 元に戻した）
+    if (d.live) {
+        const inside = !d.single && !detached;
+        d.live.then(ok => ok ? window.electronAPI.tabDragFinish({ inside }) : 'none').then(res => {
+            if (res === 'moved' || res === 'new') closeTab(d.id);
+            else if (res === 'merged') window.electronAPI.windowControl('close');
+            else if (d.resume) webviews[d.id]?.executeJavaScript(`(() => { const m = [...document.querySelectorAll('video, audio')].find(v => v.paused && Math.abs(v.currentTime - ${d.resume}) < 3); if (m) m.play().catch(() => {}); })()`).catch(() => {});
+            queueTabstrip();
+        });
+        if (!inside) { queueTabstrip(); return; }
+    } else if (detached && e && typeof tabTearOffEnabled === 'function' && tabTearOffEnabled()) {
+        // 切り離しが使えない時（以前の方法）：離した場所で別のウィンドウへ移す / 新しいウィンドウを作る
         const card = getTabCard(d.id);
         const outsideWindow = e.clientY < -10 || e.clientY > innerHeight + 10 || e.clientX < -10 || e.clientX > innerWidth + 10;
-        // 離した後でゴーストを消す（先に消すと、入る場所の表示が先に閉じてしまう）
-        if (card && (outsideWindow || getTabCards().length > 1)) { Promise.resolve(tearOffTab(card, e.screenX, e.screenY)).finally(endGhost); queueTabstrip(); return; }
-        endGhost(); queueTabstrip(); return;
+        if (card && (outsideWindow || getTabCards().length > 1)) tearOffTab(card, e.screenX, e.screenY);
+        queueTabstrip(); return;
     }
     // 上で並べ替えた順をサイドバーのタブへ反映する（後ろのタブの前に入れると、そのタブのグループに入る）
     const card = getTabCard(d.id);
@@ -213,13 +231,14 @@ function tsEndDrag(e) {
     }
     queueTabstrip();
 }
-tsTabsEl.addEventListener('pointerup', tsEndDrag);
+window.addEventListener('pointerup', tsEndDrag);
 tsTabsEl.addEventListener('pointercancel', () => tsEndDrag(null));
 // ▼ 追加：マウスのキャプチャが外れた（ウィンドウの切り替えなど）時も、ドラッグ中の見た目を必ず元に戻す
 tsTabsEl.addEventListener('lostpointercapture', () => {
-    setTimeout(() => { const d = tsDragging; if (d && !d.el.hasPointerCapture?.(d.pointerId)) tsEndDrag(null); }, 30);
+    // 切り離し中（ウィンドウを動かしている間）は、つかみが外れても離すまで続ける
+    setTimeout(() => { const d = tsDragging; if (d && !d.live && !d.el.hasPointerCapture?.(d.pointerId)) tsEndDrag(null); }, 30);
 });
-window.addEventListener('blur', () => { if (tsDragging) tsEndDrag(null); });
+window.addEventListener('blur', () => { if (tsDragging && !tsDragging.live) tsEndDrag(null); });
 tsTabsEl.addEventListener('click', (e) => {
     const x = e.target.closest('.ts-x');
     if (x) { tsCloseTab(x.closest('.ts-tab').dataset.id); return; }
@@ -239,6 +258,69 @@ tsTabsEl.addEventListener('contextmenu', (e) => {
     target.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: e.clientX, clientY: e.clientY }));
 });
 document.getElementById('ts-new').addEventListener('click', () => openNewTab());
+
+// ---------- ウィンドウが細い時（Chrome・Brave と同じ） ----------
+// ・入りきらないボタンは右から順に「»」のメニューへ移す（設定ボタンは残す）
+// ・タブが細くなったら、タイトルを隠してアイコンだけ。閉じるボタンは表示中のタブだけ
+const TB_OVERFLOW = [   // [隠し始めるウィンドウの幅, ボタン, メニューでの名前]
+    [980, 'np-chip', '再生中の曲'], [980, 'btn-extensions', '拡張機能'], [980, 'btn-bookmarks-panel', 'ブックマーク'],
+    [760, 'btn-downloads', 'ダウンロード'], [760, 'btn-split', '分割表示'], [600, 'btn-forward', '進む'],
+];
+const overflowBtn = document.getElementById('btn-overflow');
+const overflowMenu = document.getElementById('overflow-menu');
+function updateToolbarOverflow() {
+    const w = window.innerWidth, top = isTopLayout();
+    let any = false;
+    TB_OVERFLOW.forEach(([bp, id]) => { const el = document.getElementById(id); const hide = top && w < bp; el?.classList.toggle('tb-hidden', hide); any = any || hide; });
+    overflowBtn.classList.toggle('show', any);
+    if (!any) overflowMenu.classList.remove('show');
+    // 細いタブ：アイコンだけにする
+    const list = [...tsTabsEl.querySelectorAll('.ts-tab:not(.pinned):not(.ts-incoming)')];
+    const avg = list.length ? list.reduce((n, t) => n + t.offsetWidth, 0) / list.length : 999;
+    tsTabsEl.classList.toggle('ts-tight', avg < 120);   // 閉じるボタンは表示中のタブだけ（タイトルに場所を回す）
+    tsTabsEl.classList.toggle('ts-narrow', avg < 62);   // アイコンだけ
+    // 幅が変わって表示中のタブが見えなくなったら、見える所までスクロールする
+    const active = tsTabsEl.querySelector('.ts-tab.active');
+    if (active && tsTabsEl.scrollWidth > tsTabsEl.clientWidth + 1) {
+        const box = tsTabsEl.getBoundingClientRect(), r = active.getBoundingClientRect();
+        if (r.left < box.left) tsTabsEl.scrollLeft -= box.left - r.left + 8;
+        else if (r.right > box.right) tsTabsEl.scrollLeft += r.right - box.right + 8;
+    }
+}
+// ほかの場所に表示するポップアップ（ダウンロード・拡張機能）は、ボタンが隠れている時は「»」の下に出す
+function toolbarAnchorRect(el) {
+    return el && !el.classList.contains('tb-hidden') ? el.getBoundingClientRect() : overflowBtn.getBoundingClientRect();
+}
+overflowBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (overflowMenu.classList.toggle('show')) {
+        overflowMenu.innerHTML = TB_OVERFLOW.filter(([, id]) => document.getElementById(id)?.classList.contains('tb-hidden')).map(([, id, label]) => {
+            const el = document.getElementById(id), icon = el.querySelector('.dl-arrow, .np-eq') || el.querySelector('svg');
+            return `<div class="overflow-item" role="menuitem" tabindex="0" data-target="${id}"><span class="oi-icon">${icon ? icon.outerHTML : ''}</span>${tsEsc(label)}</div>`;
+        }).join('');
+        const r = overflowBtn.getBoundingClientRect();
+        overflowMenu.style.top = `${r.bottom + 8}px`;
+        overflowMenu.style.right = `${Math.max(8, window.innerWidth - r.right)}px`;
+        overflowMenu.querySelector('.overflow-item')?.focus();
+    }
+});
+overflowMenu.addEventListener('click', (e) => {
+    const item = e.target.closest('.overflow-item'); if (!item) return;
+    e.stopPropagation();
+    overflowMenu.classList.remove('show');
+    // メニューを閉じてから、隠れているボタンを押したことにする（そのボタンのポップアップは「»」の下に出る）
+    setTimeout(() => document.getElementById(item.dataset.target)?.click(), 0);
+});
+overflowMenu.addEventListener('keydown', (e) => {
+    const items = [...overflowMenu.querySelectorAll('.overflow-item')], i = items.indexOf(document.activeElement);
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.activeElement?.click(); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length]?.focus(); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length]?.focus(); }
+    else if (e.key === 'Escape') { overflowMenu.classList.remove('show'); overflowBtn.focus?.(); }
+});
+document.addEventListener('click', (e) => { if (!e.target.closest('#overflow-menu, #btn-overflow')) overflowMenu.classList.remove('show'); });
+window.addEventListener('resize', updateToolbarOverflow);
+new ResizeObserver(updateToolbarOverflow).observe(tsTabsEl);
 
 // ---------- 別のウィンドウからタブを持ってきた時（入る場所を開く） ----------
 let tsIncoming = null;   // { el, clientX, title }
@@ -266,7 +348,7 @@ window.electronAPI?.onTabDragHover?.(({ leave, clientX, title } = {}) => {
     tsIncoming = { ...(tsIncoming || {}), clientX, title };
     tsPlaceIncoming();
 });
-window.electronAPI?.onTabDropIn?.(async ({ url, isPrivate } = {}) => {
+window.electronAPI?.onTabDropIn?.(async ({ url, isPrivate, resume } = {}) => {
     // 開いていた場所の次にあるもの（タブ・グループ）を覚えてから開く
     let next = tsIncoming?.el?.isConnected ? tsIncoming.el.nextElementSibling : null;
     const nextTab = next?.classList.contains('ts-tab') ? getTabCard(next.dataset.id) : null;
@@ -274,6 +356,7 @@ window.electronAPI?.onTabDropIn?.(async ({ url, isPrivate } = {}) => {
     const placed = !!tsIncoming?.el?.isConnected;
     tsClearIncoming();
     const card = await openNewTab(url, { isPrivate: !!isPrivate });
+    if (card && resume > 0 && typeof resumeMediaInTab === 'function') resumeMediaInTab(card.getAttribute('data-tab-id'), resume);
     if (card && placed) {
         if (nextTab) nextTab.before(card);
         else if (nextGroup) nextGroup.before(card);

@@ -67,11 +67,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   moveTabToOtherWindow: (tab) => ipcRenderer.invoke('move-tab-to-other-window', tab),
   onMergeIntoWindow: (callback) => ipcRenderer.on('merge-into-window', (e, data) => callback(data)),
   windowCountNow: () => ipcRenderer.sendSync('window-count-sync'),
+  confirmCloseAll: (count) => ipcRenderer.invoke('confirm-close-all', count),
   tearOffTab: (payload) => ipcRenderer.invoke('tab-tear-off', payload),
-  // ▼ 追加：タブを引き出している間の見た目（ゴースト・入る場所の表示）
-  tabDragStart: (info) => ipcRenderer.send('tab-drag-start', info),
+  // ▼ 追加：タブを引き出した瞬間に別のウィンドウにする（main/tab-drag.js）
+  tabDetach: (info) => ipcRenderer.invoke('tab-detach', info),
   tabDragMove: (pos) => ipcRenderer.send('tab-drag-move', pos),
-  tabDragEnd: () => ipcRenderer.send('tab-drag-end'),
+  tabDragFinish: (pos) => ipcRenderer.invoke('tab-drag-finish', pos),
   onTabDragHover: (callback) => ipcRenderer.on('tab-drag-hover', (e, data) => callback(data)),
   onTabDropIn: (callback) => ipcRenderer.on('tab-drop-in', (e, data) => callback(data)),
   onWindowMaximized: (callback) => ipcRenderer.on('window-maximized', (e, on) => callback(on)),

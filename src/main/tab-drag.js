@@ -1,37 +1,19 @@
 // ==========================================
-// ★ タブを引き出している間の見た目（Chrome のような「外れた」感じ）
+// ★ タブの切り離し・合体（Chrome と同じく、引き出した瞬間に別のウィンドウになる）
 // ==========================================
-// ・タブをタブバーから引き出すと、タブとページの小さな画像がマウスについてくる（ゴースト）
-// ・別のブラウザウィンドウの上に来ると、ゴーストは消えて、そのウィンドウのタブバーに「ここに入る」場所が開く
-// ・離すと tab-tear-off（main.js）がそのウィンドウへ移す / 新しいウィンドウを作る
-const { BrowserWindow, ipcMain, webContents } = require('electron');
+// ・タブをタブバーから引き出した瞬間に新しいウィンドウを作り、離すまでマウスについて動かす
+// ・タブが 1 枚だけのウィンドウは、タブをつかむとウィンドウごと動く
+// ・ほかのウィンドウのタブバーに重ねると、動かしていたウィンドウは隠れ（1 枚だけのウィンドウは薄くなり）、
+//   そのタブバーに「ここに入る」場所が開く。離すとそこに入る
+// ・元のタブバーに戻すと、作ったウィンドウは隠れる（離すと取りやめ）
+// ページはウィンドウをまたいで持ち運べないため、新しいウィンドウでは読み込み直しになる。
+// 再生中の動画・音楽は、同じ位置から続きを再生する（resume）
+const { BrowserWindow, ipcMain } = require('electron');
 const windows = require('./windows');
 
-const GHOST_W = 300, GHOST_H = 214, OFFSET_X = 60, OFFSET_Y = 18;
-let drag = null;   // { from, ghost, hoverWin, title }
-
-const esc = (s) => String(s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const cssColor = (s, d) => /^[#a-z0-9(),.%\s-]{1,60}$/i.test(String(s || '')) ? s : d;
-
-function ghostHtml({ title, bg, fg, accent }) {
-  bg = cssColor(bg, '#1c1c21'); fg = cssColor(fg, '#ececf0'); accent = cssColor(accent, '#AAB7B7');
-  return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><style>
-  html,body{margin:0;background:transparent;overflow:hidden;font:12.5px "Segoe UI","Yu Gothic UI",system-ui,sans-serif}
-  .g{position:absolute;inset:6px;border-radius:12px;overflow:hidden;background:${bg};color:${fg};box-shadow:0 10px 24px rgba(0,0,0,.38);
-     display:flex;flex-direction:column;animation:in .16s cubic-bezier(.2,.8,.2,1)}
-  @keyframes in{from{transform:scale(.9);opacity:0}}
-  .t{height:30px;flex:none;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:2px solid ${accent};white-space:nowrap}
-  .t span{overflow:hidden;text-overflow:ellipsis}
-  .p{flex:1;background:rgba(127,127,127,.12) center/cover no-repeat}
-  </style></head><body><div class="g"><div class="t"><span id="title">${esc(title)}</span></div><div class="p" id="shot"></div></div></body></html>`;
-}
-
-function destroyGhost(fade) {
-  const g = drag?.ghost; if (!g || g.isDestroyed()) return;
-  if (!fade) { g.destroy(); return; }
-  let o = 1;
-  const t = setInterval(() => { o -= 0.2; if (g.isDestroyed()) return clearInterval(t); if (o <= 0) { clearInterval(t); g.destroy(); } else g.setOpacity(o); }, 16);
-}
+const STRIP_ZONE = 56;   // ウィンドウの上から何 px までを「タブバーの上」とみなすか
+let drag = null;   // { mode: 'new' | 'window', from, win, off, url, isPrivate, resume, title, hoverWin }
+let createWindow = null;
 
 function setHover(win, payload) {
   if (!drag) return;
@@ -40,60 +22,94 @@ function setHover(win, payload) {
   if (win) windows.sendTo(win, 'tab-drag-hover', payload);
 }
 
-function windowAt(x, y, except) {
-  return windows.all().find(w => w !== except && !w.isMinimized() && w.isVisible() && (() => {
-    const b = w.getBounds(); return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + b.height;
+// (x, y) の下にある、ほかのブラウザウィンドウのタブバー
+function stripWindowAt(x, y, except) {
+  return windows.all().find(w => !except.includes(w) && !w.isDestroyed() && !w.isMinimized() && w.isVisible() && (() => {
+    const b = w.getContentBounds();
+    return x >= b.x && x <= b.x + b.width && y >= b.y && y <= b.y + STRIP_ZONE;
   })()) || null;
 }
 
-function init() {
-  ipcMain.on('tab-drag-start', (event, { title, webContentsId, bg, fg, accent } = {}) => {
-    end(false);
+const alive = (w) => w && !w.isDestroyed();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, Number(v) || 0));
+
+function init(opts = {}) {
+  createWindow = opts.createWindow;
+
+  // 引き出した（または 1 枚だけのウィンドウのタブをつかんだ）
+  ipcMain.handle('tab-detach', (event, p = {}) => {
+    finish({});
     const from = BrowserWindow.fromWebContents(event.sender);
-    const ghost = new BrowserWindow({
-      width: GHOST_W, height: GHOST_H, show: false, frame: false, transparent: true, resizable: false, movable: false,
-      focusable: false, skipTaskbar: true, alwaysOnTop: true, hasShadow: false, backgroundColor: '#00000000',
-      webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, javascript: true },
-    });
-    ghost.setIgnoreMouseEvents(true);
-    ghost.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(ghostHtml({ title, bg, fg, accent })));
-    drag = { from, ghost, hoverWin: null, title: String(title || '').slice(0, 200), shown: false };
-    // ページの小さな画像（取れなければタイトルだけ）
-    const wc = Number.isInteger(webContentsId) ? webContents.fromId(webContentsId) : null;
-    wc?.capturePage?.().then(img => {
-      if (!drag || drag.ghost !== ghost || ghost.isDestroyed() || img.isEmpty()) return;
-      const url = img.resize({ width: GHOST_W * 2 }).toDataURL();
-      ghost.webContents.executeJavaScript(`document.getElementById('shot').style.backgroundImage = 'url(' + ${JSON.stringify(url)} + ')'`).catch(() => {});
-    }).catch(() => {});
+    if (!from || typeof p.url !== 'string' || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return false;
+    const base = { from, url: p.url, isPrivate: !!p.isPrivate, title: String(p.title || '').slice(0, 200), resume: Number(p.resume) > 0 ? Number(p.resume) : 0, hoverWin: null };
+    if (p.single) {
+      // ウィンドウごと動かす。最大化中は元の大きさに戻し、つかんだタブがマウスの下に来るようにする
+      if (from.isFullScreen()) return false;
+      if (from.isMaximized()) from.unmaximize();
+      const b = from.getBounds();
+      const off = { x: clamp(p.x - b.x, 8, Math.max(60, Math.min(b.width - 160, 260))), y: clamp(p.y - b.y, 4, 40) };
+      drag = { ...base, mode: 'window', win: from, off };
+      from.setPosition(Math.round(p.x - off.x), Math.round(p.y - off.y));
+      return true;
+    }
+    if (typeof createWindow !== 'function') return false;
+    const size = from.isMaximized() || from.isFullScreen() ? { width: 1280, height: 800 } : from.getBounds();
+    // 新しいウィンドウの 1 枚目のタブ（左から 8px・上から 11px）の、つかんだ所がマウスの下に来るように置く
+    const off = { x: 8 + clamp(p.grabX, 10, 180), y: 11 + clamp(p.grabY, 4, 30) };
+    const query = { url: p.url };
+    if (p.isPrivate) query.private = '1';
+    if (base.resume) query.resume = String(base.resume);
+    const win = createWindow(query, { x: Math.round(p.x - off.x), y: Math.round(p.y - off.y), width: size.width, height: size.height, show: false });
+    win.showInactive();   // 元のウィンドウがマウスをつかんだままにするため、フォーカスは移さない
+    drag = { ...base, mode: 'new', win, off };
+    return true;
   });
 
-  // 引き出し中のマウスの位置（画面座標）。inside = 元のウィンドウのタブバーに戻っている
+  // 動かしている間（画面座標）。inside = 元のウィンドウのタブバーに戻っている
   ipcMain.on('tab-drag-move', (event, { x, y, inside } = {}) => {
     if (!drag || !Number.isFinite(x) || !Number.isFinite(y)) return;
-    const { ghost, from } = drag;
-    const target = inside ? null : windowAt(x, y, from);
+    const { win, mode, from } = drag;
+    if (!alive(win)) { drag = null; return; }
+    const target = inside ? null : stripWindowAt(x, y, [win, from]);
     if (target) {
       const b = target.getContentBounds();
       setHover(target, { clientX: x - b.x, clientY: y - b.y, title: drag.title });
     } else setHover(null);
-    if (ghost.isDestroyed()) return;
-    if (inside || target) { if (ghost.isVisible()) ghost.hide(); return; }
-    ghost.setBounds({ x: Math.round(x - OFFSET_X), y: Math.round(y - OFFSET_Y), width: GHOST_W, height: GHOST_H });
-    if (!ghost.isVisible()) ghost.showInactive();
+    if (mode === 'new') {
+      if (inside || target) { if (win.isVisible()) win.hide(); return; }
+      win.setPosition(Math.round(x - drag.off.x), Math.round(y - drag.off.y));
+      if (!win.isVisible()) win.showInactive();
+    } else {
+      // 1 枚だけのウィンドウ：隠すとマウスのつかみが外れるので、重ねている間は薄くするだけ
+      win.setOpacity(target ? 0.35 : 1);
+      win.setPosition(Math.round(x - drag.off.x), Math.round(y - drag.off.y));
+    }
   });
 
-  ipcMain.on('tab-drag-end', () => end(true));
+  // 離した
+  ipcMain.handle('tab-drag-finish', (event, p = {}) => finish(p));
 }
 
-// 離した（または取りやめた）。ゴーストを消し、入る場所を開いていたウィンドウの表示を戻す
-function end(fade) {
-  if (!drag) return;
-  setHover(null);
-  destroyGhost(fade);
-  drag = null;
+function finish({ inside } = {}) {
+  if (!drag) return 'none';
+  const d = drag; drag = null;
+  const target = alive(d.hoverWin) ? d.hoverWin : null;
+  if (target && !inside) {
+    // 入る場所を開いていたウィンドウへ（開いた場所は tab-drop-in を受けた側が使う）
+    windows.sendTo(target, 'tab-drop-in', { url: d.url, isPrivate: d.isPrivate, resume: d.resume });
+    target.focus();
+    if (d.mode === 'new') { if (alive(d.win)) d.win.close(); return 'moved'; }
+    return 'merged';   // 1 枚だけのウィンドウ：元のウィンドウは自分で閉じる
+  }
+  if (d.hoverWin && alive(d.hoverWin)) windows.sendTo(d.hoverWin, 'tab-drag-hover', { leave: true });
+  if (d.mode === 'new') {
+    if (!alive(d.win)) return 'cancel';
+    if (inside) { d.win.close(); return 'cancel'; }
+    d.win.show(); d.win.focus();
+    return 'new';
+  }
+  if (alive(d.win)) d.win.setOpacity(1);
+  return 'window';
 }
 
-// tab-tear-off で「このウィンドウへ移す」時に、開いていた場所を使えるよう、いま重ねているウィンドウを返す
-const hoveredWindow = () => drag?.hoverWin || null;
-
-module.exports = { init, end, hoveredWindow };
+module.exports = { init };

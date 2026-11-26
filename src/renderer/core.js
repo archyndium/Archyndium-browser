@@ -6,7 +6,13 @@ window.electronAPI?.onWindowMaximized?.((on) => document.body.classList.toggle('
 if (window.electronAPI) {
   document.getElementById('btn-minimize').addEventListener('click', () => window.electronAPI.windowControl('minimize'));
   document.getElementById('btn-maximize').addEventListener('click', () => window.electronAPI.windowControl('maximize'));
-  document.getElementById('btn-close').addEventListener('click', () => window.electronAPI.windowControl('close'));
+  // ▼ 変更：最後のウィンドウで、タブが複数ある時は「すべて閉じるか」を聞く
+  document.getElementById('btn-close').addEventListener('click', async () => {
+    const tabs = typeof getTabCards === 'function' ? getTabCards().length : 0;
+    const lastWindow = (window.electronAPI.windowCountNow?.() || 1) <= 1;
+    if (lastWindow && tabs > 1 && !(await window.electronAPI.confirmCloseAll?.(tabs))) return;
+    window.electronAPI.windowControl('close');
+  });
 }
 
 const urlInput = document.getElementById('url-input');
