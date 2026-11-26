@@ -27,7 +27,8 @@ const SHIELD_MODES = [
 ];
 
 // 動画・音楽サイト（自動で「簡易」にするサイト）
-const SHIELD_MEDIA_HOSTS = /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com|soundcloud\.com|nicovideo\.jp|spotify\.com|music\.apple\.com|bandcamp\.com|twitch\.tv|vimeo\.com|dailymotion\.com|music\.amazon\.co\.jp|music\.amazon\.com|tver\.jp|abema\.tv)$/i;
+// ▼ 変更：ニコニコ動画は外した。簡易では動画の前の広告を止められないため、標準（通信のブロック）を使う
+const SHIELD_MEDIA_HOSTS = /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com|soundcloud\.com|spotify\.com|music\.apple\.com|bandcamp\.com|twitch\.tv|vimeo\.com|dailymotion\.com|music\.amazon\.co\.jp|music\.amazon\.com|tver\.jp|abema\.tv)$/i;
 const SHIELD_AUTO_KEY = 'archyndium_shield_auto';
 let shieldAutoLite = (() => { try { return localStorage.getItem(SHIELD_AUTO_KEY) !== 'off'; } catch (e) { return true; } })();
 function setShieldAutoLite(on) {

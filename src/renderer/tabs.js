@@ -127,7 +127,8 @@ function createWebviewForTab(tabId, url) {
           // ▼ 軽量化：以前はどのサイトでも 0.05 秒ごとに広告を探していた（重さの原因）。
           //   探す広告は動画サイトのものだけなので動画サイトでだけ動かし、ページが変わった時（MutationObserver）と
           //   0.25 秒ごとの確認にまとめる。ほかのサイトの広告は通信のブロック（main/adblock.js）で止まる
-          const isVideoSite = /(^|\\.)youtube\\.com$/.test(location.hostname);
+          const isNico = /(^|\\.)nicovideo\\.jp$/.test(location.hostname);
+          const isVideoSite = isNico || /(^|\\.)youtube\\.com$/.test(location.hostname);
           const killAds = () => {
             if(!runBlocker) return;
             
@@ -148,15 +149,41 @@ function createWebviewForTab(tabId, url) {
               if (video.currentTime < video.duration - 0.5) video.currentTime = video.duration - 0.1;
             }
             
-            // 4. 「広告ブロッカー警告」を閉じて動画を再生する
+            // 4. ▼ 追加：ニコニコ動画の動画広告。「スキップ」が押せるようになったらすぐ押す。待ち時間の間は広告の動画を早送りする
+            //   （ニコニコ動画のボタンの名前は公開されていないので、表示されている文字で見分ける）
+            if (isNico) {
+              const txt = (el) => (el.textContent || '').replace(/\\s+/g, '');
+              // 動画の周り（プレイヤー）の中だけを見る。ページ全体は見ない（軽さのため）
+              const v0 = document.querySelector('video');
+              let player = v0 && v0.closest('[class*="player" i], [id*="player" i]');
+              while (player && player.parentElement && player.parentElement.matches('[class*="player" i], [id*="player" i]')) player = player.parentElement;
+              player = player || v0?.parentElement?.parentElement?.parentElement;
+              if (!player) return;
+              const counting = [...player.querySelectorAll('div, span, p')].some(el => el.childElementCount === 0 && /秒後にスキップ/.test(txt(el)) && el.offsetParent !== null);
+              [...player.querySelectorAll('button, [role="button"], div, span')].forEach(el => {
+                const t = txt(el);
+                if ((t === 'スキップ' || t === 'スキップする' || t === '広告をスキップ' || t === 'Skip' || t === 'SkipAd') && el.offsetParent !== null) el.click();
+              });
+              if (counting) document.querySelectorAll('video').forEach(v => {
+                // 本編は広告の間止まっているので、再生中の短い動画（= 広告）だけを早送りする
+                if (!v.paused && v.duration && v.duration < 90) { v.muted = true; v.playbackRate = 16; }
+              });
+            }
+
+            // 5. 「広告ブロッカー警告」を閉じて動画を再生する
+            // ▼ 修正：警告の後ろの暗い幕は今は tp-yt-iron-overlay-backdrop という名前で、以前の名前（iron-overlay-backdrop）では
+            //   消えずに残り、動画の再生中も画面全体に黒いスモークがかかっていた。警告を閉じた後、ほかに開いている
+            //   ダイアログが無ければ幕も消す（共有などの普通のダイアログの幕は消さない）
             const popup1 = document.querySelector('ytd-enforcement-message-view-model');
-            const popup2 = document.querySelector('tp-yt-paper-dialog');
-            const backdrop = document.querySelector('iron-overlay-backdrop');
             let isBlocked = false;
-            
-            if (popup1) { popup1.remove(); isBlocked = true; }
-            if (popup2 && popup2.innerHTML.includes('Ad blockers')) { popup2.remove(); isBlocked = true; }
-            if (backdrop) { backdrop.remove(); }
+            if (popup1) { (popup1.closest('tp-yt-paper-dialog') || popup1).remove(); isBlocked = true; }
+            document.querySelectorAll('tp-yt-paper-dialog').forEach(d => {
+              if (/Ad blockers|広告ブロッカー/.test(d.textContent || '')) { d.remove(); isBlocked = true; }
+            });
+            const openDialog = [...document.querySelectorAll('tp-yt-paper-dialog, ytd-popup-container tp-yt-iron-dropdown')].some(d => d.offsetParent !== null && getComputedStyle(d).display !== 'none');
+            if (isBlocked || !openDialog) {
+              document.querySelectorAll('tp-yt-iron-overlay-backdrop, iron-overlay-backdrop').forEach(b => { if (isBlocked || b.classList.contains('opened')) b.remove(); });
+            }
             
             if (document.body && document.body.style.overflow === 'hidden') {
                 document.body.style.overflow = '';
@@ -413,7 +440,21 @@ async function openNewTab(url = getHomeUrl(), { background = false, isPrivate = 
     if (background && current) current.after(newTab);
     else container.insertBefore(newTab, container.querySelector('.tab-group') || null);
     if (!background) newTab.click();
+    // ▼ 追加：新しいタブ（スタートページ・検索エンジンのトップ）を開いたら、Chrome と同じくアドレスバーを選んだ状態にする。
+    //   ページの読み込みでフォーカスを取られることがあるので、読み込み後にもう一度選ぶ（その前に利用者が他を触っていたら何もしない）
+    if (!background && url === getHomeUrl()) focusOmnibarForNewTab(newTab.getAttribute('data-tab-id'));
     return newTab;
+}
+function focusOmnibarForNewTab(tabId) {
+    const pick = () => {
+        if (activeTabId !== tabId) return;
+        const a = document.activeElement;
+        if (a && a !== document.body && a !== urlInput && a.tagName !== 'WEBVIEW') return;   // 利用者がほかの所を使っている
+        urlInput.focus(); urlInput.select();
+    };
+    requestAnimationFrame(pick);
+    const wv = webviews[tabId];
+    if (wv) { const once = () => { wv.removeEventListener('did-finish-load', once); setTimeout(pick, 30); }; wv.addEventListener('did-finish-load', once); setTimeout(() => wv.removeEventListener('did-finish-load', once), 5000); }
 }
 
 function closeTab(tabId) {
