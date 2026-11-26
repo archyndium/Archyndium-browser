@@ -80,6 +80,7 @@ function switchTab(tabId) {
     if (typeof refreshShieldSiteState === 'function') refreshShieldSiteState(); // 盾アイコンを切替先タブのモード・サイト例外に合わせる
     if (typeof applySplitLayout === 'function') applySplitLayout(); // 分割表示中のタブなら相方も並べて表示する
     if (typeof refreshZoomIndicator === 'function') refreshZoomIndicator();
+    if (typeof updateTranslateButton === 'function') updateTranslateButton();
 }
 
 // ▼ タブ（webview）を新規生成する関数
@@ -263,6 +264,7 @@ function createWebviewForTab(tabId, url) {
           }, 500);
         `;
         wv.executeJavaScript(hybridScript).catch(()=>{});
+        if (typeof onTranslateDomReady === 'function') onTranslateDomReady(tabId); // ページの言語の判定・自動翻訳・字幕の翻訳
     });
 
     wv.addEventListener('found-in-page', (e) => onFoundInPage(tabId, e.result));
@@ -285,6 +287,10 @@ function createWebviewForTab(tabId, url) {
             onMediaPaused(tabId);
         } else if (msg.startsWith('ARCHYNDIUM_LINKHOVER:')) {
             try { if (typeof onLinkHover === 'function') onLinkHover(tabId, JSON.parse(msg.slice('ARCHYNDIUM_LINKHOVER:'.length))); } catch(err) {}
+        } else if (msg.startsWith('ARCHYNDIUM_SUB:')) {
+            try { if (typeof onSubtitleLine === 'function') onSubtitleLine(tabId, JSON.parse(msg.slice('ARCHYNDIUM_SUB:'.length)).key); } catch(err) {}
+        } else if (msg.startsWith('ARCHYNDIUM_SUBALL:')) {
+            try { if (typeof onSubtitleAll === 'function') onSubtitleAll(tabId, JSON.parse(msg.slice('ARCHYNDIUM_SUBALL:'.length)).keys); } catch(err) {}
         } else if (msg.startsWith('ARCHYNDIUM_NTP:')) {
             if (typeof onNewTabMessage === 'function') onNewTabMessage(tabId, msg.slice('ARCHYNDIUM_NTP:'.length));
         } else if (msg.startsWith('ARCHYNDIUM_VOLUME:')) {
@@ -309,6 +315,7 @@ function createWebviewForTab(tabId, url) {
 
     wv.addEventListener('did-navigate', (e) => {
         const currentUrl = e.url;
+        if (typeof onTranslateNavigate === 'function') onTranslateNavigate(tabId); // 別のページに移ったら翻訳の状態を戻す
         const tabCard = document.querySelector(`.tab-card[data-tab-id="${tabId}"]`);
         if (tabCard) {
             tabCard.setAttribute('data-url', currentUrl);

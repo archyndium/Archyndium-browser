@@ -94,6 +94,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   clearSiteData: (host) => ipcRenderer.invoke('site-data-clear', host),
   // ▼ 追加：ミニプレイヤーの大きさの変更（右下の角をドラッグ）
   miniResize: (size) => ipcRenderer.send('mini-resize', size),
+  // ▼ 追加：端末内の翻訳（main/translator.js）
+  translateStatus: () => ipcRenderer.invoke('translate-status'),
+  translateDownload: (pair) => ipcRenderer.invoke('translate-download', pair),
+  translateDeleteModel: (pair) => ipcRenderer.invoke('translate-delete-model', pair),
+  translateTexts: (req) => ipcRenderer.invoke('translate-texts', req),
+  onTranslateDownloadProgress: (cb) => ipcRenderer.on('translate-download-progress', (e, d) => cb(d)),
   // ▼ 追加：リンクのプレビュー（ページのタイトル・画像を main で取得）
   linkPreview: (url) => ipcRenderer.invoke('link-preview', url),
   isDefaultBrowser: () => ipcRenderer.invoke('is-default-browser'),

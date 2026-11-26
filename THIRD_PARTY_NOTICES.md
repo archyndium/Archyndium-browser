@@ -9,8 +9,14 @@ MIT License — https://github.com/electron/electron
 
 Electron に含まれる Chromium などのライセンスは、アプリと一緒に配布される `LICENSES.chromium.html` を参照してください。
 
+## 翻訳エンジン（同梱）
+
+- **bergamot-translator**（@browsermt/bergamot-translator 0.4.9）— Mozilla Public License 2.0 — https://github.com/browsermt/bergamot-translator
+  `src/vendor/bergamot/` に同梱しています。`translator-worker.js` は、Windows のファイルパスを読めるようにする 2 か所だけを変更しています（変更点はファイルの先頭に記載）。ライセンス全文は同じフォルダの `LICENSE.txt` です。
+
 ## 実行時に取得するデータ
 
+- 翻訳モデル（英語 → 日本語 / 日本語 → 英語）：Mozilla の Firefox Translations のモデル（Mozilla Public License 2.0。https://github.com/mozilla/translations ）。アプリには同梱せず、利用者が初めて端末内翻訳を使う時に Mozilla の公開場所（storage.googleapis.com）から取得し、SHA-256 で確認してから使います。
 - 広告・トラッカーのフィルターリスト：EasyList / EasyPrivacy（GPLv3 / CC BY-SA 3.0）、uBlock Origin filters（GPLv3）。アプリには同梱せず、起動時に配布元から取得します。
 - アイコンの一部は Feather Icons（MIT License）をもとにしています — https://github.com/feathericons/feather
 

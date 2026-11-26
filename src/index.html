@@ -119,6 +119,8 @@
           <div id="misc-options"></div>
           <div class="list-section-title">Lyrics</div>
           <div id="lyrics-options"></div>
+          <div class="list-section-title">翻訳</div>
+          <div id="translate-options"></div>
           <div class="list-section-title">Shield - 例外サイト</div>
           <div id="shield-site-list"></div>
           <div class="list-section-title">Privacy - サイトのデータ</div>
@@ -149,6 +151,8 @@
               <li><b>Electron</b> — MIT License（Chromium・Node.js を含みます。各ライセンスはアプリに同梱の LICENSES.chromium.html を参照）</li>
               <li><b>@cliqz/adblocker-electron</b>（Ghostery） — Mozilla Public License 2.0</li>
               <li><b>cross-fetch</b> — MIT License</li>
+              <li><b>bergamot-translator</b>（端末内の翻訳エンジン） — Mozilla Public License 2.0</li>
+              <li>翻訳モデル：Mozilla Firefox Translations（Mozilla Public License 2.0）。初めて端末内翻訳を使う時に取得します</li>
               <li><b>electron-updater</b> — MIT License</li>
               <li><b>Feather Icons</b>（アイコンの一部） — MIT License</li>
               <li>広告・トラッカーのフィルターリスト：EasyList / EasyPrivacy（GPLv3 / CC BY-SA 3.0）、uBlock Origin filters（GPLv3）。起動時に配布元から取得しています</li>
@@ -245,6 +249,8 @@
           <input type="text" id="url-input" class="url-input" value="" spellcheck="false" autocomplete="off">
           <div class="omni-suggest" id="omni-suggest"></div>
           <span class="zoom-indicator" id="zoom-indicator" title="クリックで 100% に戻す"></span>
+          <!-- ▼ 追加：ページ翻訳（外国語のページで表示。renderer/page-translate.js） -->
+          <div class="icon-btn translate-btn" id="btn-translate" title="このページを翻訳" style="display:none"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h9M7.5 3v2M5 5c.6 3 2.6 5.4 5.5 6.6M10 5c-.7 3.2-3 6-6.5 7.5"></path><path d="M13 21l4-9 4 9M14.5 17.5h5"></path></svg></div>
           <div class="icon-btn" id="btn-bookmark"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></div>
         </div>
       <!-- ▼ 追加：拡張機能ボタン（入れた拡張機能の一覧・ポップアップ） -->
@@ -463,6 +469,8 @@
 <script src="renderer/tabstrip.js"></script>
 <script src="renderer/previews.js"></script>
 <script src="renderer/copy-unlock.js"></script>
+<script src="renderer/page-translate-inject.js"></script>
+<script src="renderer/page-translate.js"></script>
 <script src="renderer/shortcuts.js"></script>
 <script src="renderer/app.js"></script>
 </body>

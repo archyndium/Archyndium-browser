@@ -113,7 +113,9 @@ window.__archyndiumNewTab = (s) => {
   document.documentElement.classList.toggle('still', !state.motion);
   $('private').hidden = !state.private;
   $('q').placeholder = `${state.engine.name} で検索、または URL を入力`;
-  if (typeof state.shield === 'number') { $('shield').hidden = false; $('shieldCount').textContent = state.shield.toLocaleString(); }
+  // まだ 1 件もブロックしていない時（起動直後など）は出さない
+  if (typeof state.shield === 'number' && state.shield > 0) { $('shield').hidden = false; $('shieldCount').textContent = state.shield.toLocaleString(); }
+  else $('shield').hidden = true;
   renderEngine(); renderSites(); renderMusic();
   if (!running) start();
 };

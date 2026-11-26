@@ -1,7 +1,7 @@
 {
   "name": "archyndium-browser",
   "productName": "ARCHYNDIUM Browser",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "音楽と歌詞を楽しみながら使える、デザイン重視のデスクトップブラウザ",
   "author": "archyndium",
   "license": "GPL-3.0-only",
@@ -41,6 +41,9 @@
       "output": "dist",
       "buildResources": "build"
     },
+    "asarUnpack": [
+      "src/vendor/bergamot/**"
+    ],
     "files": [
       "src/**/*",
       "package.json",
