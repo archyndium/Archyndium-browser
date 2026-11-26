@@ -160,15 +160,20 @@ ipcMain.handle('tab-tear-off', (event, { url, isPrivate, screenX, screenY, onlyM
     return screenX >= b.x && screenX <= b.x + b.width && screenY >= b.y && screenY <= b.y + b.height;
   })());
   if (target) {
-    windows.sendTo(target, 'open-in-new-tab', { url, background: false, isPrivate });
+    // ▼ 変更：引き出し中にそのウィンドウのタブバーで開いていた場所へ入れる（tab-drag.js）
+    windows.sendTo(target, 'tab-drop-in', { url, isPrivate: !!isPrivate });
     target.focus();
     return 'moved';
   }
-  if (onlyMerge) return null;   // ウィンドウの最後のタブ：別のウィンドウの上でなければ何もしない
+  // ▼ 変更：ウィンドウの最後の 1 枚は、何も無い所で離したらウィンドウごとそこへ動かす（Chrome と同じ）
+  if (onlyMerge) {
+    if (from && !from.isMaximized() && !from.isFullScreen()) from.setPosition(Math.round(screenX - 100), Math.round(screenY - 22));
+    return null;
+  }
   const size = from && !from.isMaximized() ? from.getBounds() : { width: 1280, height: 800 };
   const query = { url };
   if (isPrivate) query.private = '1';
-  createWindow(query, { x: Math.round(screenX - 160), y: Math.round(screenY - 20), width: size.width, height: size.height });
+  createWindow(query, { x: Math.round(screenX - 100), y: Math.round(screenY - 22), width: size.width, height: size.height });   // 離したタブがマウスの下に来る位置
   return 'new';
 });
 // ▼ 追加：ウィンドウをまとめる。to = 'all'（ほかのウィンドウのタブをすべてこのウィンドウへ）
@@ -223,6 +228,7 @@ linkPreview.init();
 newtabProtocol.init({ privatePartition: privateSession.PRIVATE_PARTITION });
 translator.init();
 ipcMain.handle('take-startup-urls', () => { const urls = startupUrls; startupUrls = []; return urls; });
+require('./main/tab-drag').init();   // ▼ 追加：タブを引き出している間の見た目
 security.removeIpcGuard();
 
 app.whenReady().then(async () => {

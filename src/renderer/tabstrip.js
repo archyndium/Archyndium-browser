@@ -84,6 +84,7 @@ function renderTabstrip() {
     // シークレットタブを表示中は、タブ・ツールバー・ページの周りを同じ紫でつなげる
     document.body.classList.toggle('private-active', !!activeTabId && isPrivateTab(activeTabId));
     tsKnown = seen;
+    if (tsIncoming) { tsIncoming.el = null; tsPlaceIncoming(); }
     const active = tsTabsEl.querySelector('.ts-tab.active');
     if (active && tsTabsEl.scrollWidth > tsTabsEl.clientWidth + 1) {   // 表示中のタブが見えるようにスクロール（はみ出している時だけ）
         // ▼ 修正：以前は offsetLeft（タブバーの左の余白を含む位置）で計算していたため、タブを押すたびに少し左へずれていた
@@ -138,6 +139,7 @@ tsTabsEl.addEventListener('pointermove', (e) => {
     const stripRect = tabstripEl.getBoundingClientRect();
     const detached = e.clientY < -12 || e.clientY > stripRect.bottom + 56 || e.clientX < -12 || e.clientX > innerWidth + 12;
     d.el.classList.toggle('ts-detach', detached);
+    tsDragGhost(d, e, detached);
     // タブはタブバーの中だけで動かす（画面の外まで飛んで、表示が崩れて見えないように）
     const tr = tsTabsEl.getBoundingClientRect(), er = d.el.getBoundingClientRect();
     const baseLeft = er.left - (parseFloat((d.el.style.transform.match(/translateX\((-?[\d.]+)/) || [0, 0])[1]) || 0);
@@ -162,20 +164,39 @@ tsTabsEl.addEventListener('pointermove', (e) => {
     d.el.style.transform = `translateX(${e.clientX - d.x0}px)`;
     FX.emit('tabs-changed');
 });
+// ▼ 追加：引き出している間は、元の場所を閉じて、タブとページの小さな画像をマウスにつける（main/tab-drag.js）。
+//   別のウィンドウの上では、そのウィンドウのタブバーに入る場所が開く。タブバーに戻すとゴーストは消える
+function tsDragGhost(d, e, detached) {
+    const api = window.electronAPI;
+    if (!api?.tabDragStart || typeof tabTearOffEnabled !== 'function' || !tabTearOffEnabled()) return;
+    if (detached && !d.ghost) {
+        d.ghost = true;
+        const cs = getComputedStyle(document.body);
+        let wcId = null; try { wcId = webviews[d.id]?.getWebContentsId?.() ?? null; } catch (err) {}
+        api.tabDragStart({
+            title: d.el.querySelector('.ts-title')?.textContent || '', webContentsId: wcId,
+            bg: cs.getPropertyValue('--bg-canvas').trim(), fg: cs.getPropertyValue('--text-primary').trim(), accent: cs.getPropertyValue('--theme-light').trim(),
+        });
+    }
+    d.el.classList.toggle('ts-out', detached && !!d.ghost);
+    if (d.ghost) api.tabDragMove({ x: e.screenX, y: e.screenY, inside: !detached });
+}
 function tsEndDrag(e) {
     const d = tsDragging; if (!d) return;
     tsDragging = null;
     const detached = d.el.classList.contains('ts-detach');
-    d.el.classList.remove('ts-dragging', 'ts-detach'); d.el.style.transform = '';
+    d.el.classList.remove('ts-dragging', 'ts-detach', 'ts-out'); d.el.style.transform = '';
+    const endGhost = () => { if (d.ghost) window.electronAPI?.tabDragEnd?.(); };
     if (!d.moved) { activateTab(d.id); return; }
+    if (!(detached && e && typeof tabTearOffEnabled === 'function' && tabTearOffEnabled())) endGhost();
     // ▼ 変更：タブバーから引き出して離したら、別のウィンドウの上ならそこへ移し（ウィンドウに戻す）、
     //   何も無い所ならその位置に新しいウィンドウを作る（設定でオンの時）
     if (detached && e && typeof tabTearOffEnabled === 'function' && tabTearOffEnabled()) {
         const card = getTabCard(d.id);
         const outsideWindow = e.clientY < -10 || e.clientY > innerHeight + 10 || e.clientX < -10 || e.clientX > innerWidth + 10;
-        if (card && outsideWindow) { tearOffTab(card, e.screenX, e.screenY); queueTabstrip(); return; }
-        if (card && getTabCards().length > 1) { tearOffTab(card, e.screenX, e.screenY); queueTabstrip(); return; }
-        queueTabstrip(); return;
+        // 離した後でゴーストを消す（先に消すと、入る場所の表示が先に閉じてしまう）
+        if (card && (outsideWindow || getTabCards().length > 1)) { Promise.resolve(tearOffTab(card, e.screenX, e.screenY)).finally(endGhost); queueTabstrip(); return; }
+        endGhost(); queueTabstrip(); return;
     }
     // 上で並べ替えた順をサイドバーのタブへ反映する（後ろのタブの前に入れると、そのタブのグループに入る）
     const card = getTabCard(d.id);
@@ -216,6 +237,48 @@ tsTabsEl.addEventListener('contextmenu', (e) => {
 });
 document.getElementById('ts-new').addEventListener('click', () => openNewTab());
 
+// ---------- 別のウィンドウからタブを持ってきた時（入る場所を開く） ----------
+let tsIncoming = null;   // { el, clientX, title }
+function tsPlaceIncoming() {
+    if (!tsIncoming || !isTopLayout()) return;
+    const { clientX } = tsIncoming;
+    let el = tsIncoming.el;
+    if (!el || !el.isConnected) {
+        el = tsIncoming.el = document.createElement('div');
+        el.className = 'ts-tab ts-incoming';
+        el.innerHTML = `<span class="ts-title">${tsEsc(tsIncoming.title || '')}</span>`;
+    }
+    const sibs = [...tsTabsEl.querySelectorAll('.ts-tab:not(.ts-incoming):not(.pinned)')];
+    const before = sibs.find(s => { const b = s.getBoundingClientRect(); return clientX < b.left + b.width / 2; });
+    if (before) { if (el.nextElementSibling !== before) before.before(el); }
+    else if (tsTabsEl.lastElementChild !== el) tsTabsEl.appendChild(el);
+}
+function tsClearIncoming() {
+    tsIncoming?.el?.remove(); tsIncoming = null;
+    document.body.classList.remove('tab-drop-target');
+}
+window.electronAPI?.onTabDragHover?.(({ leave, clientX, title } = {}) => {
+    if (leave) { tsClearIncoming(); return; }
+    document.body.classList.add('tab-drop-target');
+    tsIncoming = { ...(tsIncoming || {}), clientX, title };
+    tsPlaceIncoming();
+});
+window.electronAPI?.onTabDropIn?.(async ({ url, isPrivate } = {}) => {
+    // 開いていた場所の次にあるもの（タブ・グループ）を覚えてから開く
+    let next = tsIncoming?.el?.isConnected ? tsIncoming.el.nextElementSibling : null;
+    const nextTab = next?.classList.contains('ts-tab') ? getTabCard(next.dataset.id) : null;
+    const nextGroup = next?.classList.contains('ts-group') ? tsGroupEl(next) : null;
+    const placed = !!tsIncoming?.el?.isConnected;
+    tsClearIncoming();
+    const card = await openNewTab(url, { isPrivate: !!isPrivate });
+    if (card && placed) {
+        if (nextTab) nextTab.before(card);
+        else if (nextGroup) nextGroup.before(card);
+        else document.getElementById('tabs-container').appendChild(card);
+        if (typeof scheduleSaveSession === 'function') scheduleSaveSession();
+    }
+});
+
 // ---------- パネル（Work / Focus・ブックマーク・履歴など）の開閉 ----------
 document.getElementById('btn-panel').addEventListener('click', () => {
     const open = !document.body.classList.contains('panel-open');
@@ -254,7 +317,7 @@ function updateNpChip() {
     const hasMedia = !!(mediaTargetTabId || (typeof audioPlaylist !== 'undefined' && audioPlaylist.length));
     npChipEl.classList.toggle('idle', !hasMedia);
     npChipEl.classList.toggle('playing', !!isPlaying);
-    const title = nowPlayingTitle?.textContent || '';
+    const title = hasMedia ? (nowPlayingTitle?.textContent || '') : '再生中の曲はありません';
     const t = npChipEl.querySelector('.np-title span');
     if (t.textContent !== title) { t.textContent = title; npChipEl.querySelector('.np-title').title = title; }
     const playBtn = npChipEl.querySelector('.np-play');
@@ -265,12 +328,13 @@ function updateNpChip() {
         : '<svg viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4"></polygon></svg>';
 }
 setInterval(updateNpChip, 400);
+npChipEl?.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target === npChipEl && mediaTargetTabId) activateTab(mediaTargetTabId); if (e.key === 'Escape') npChipEl.blur(); });
 npChipEl?.addEventListener('click', (e) => {
     if (e.target.closest('.np-play')) { document.getElementById('btn-play').click(); setTimeout(updateNpChip, 60); return; }
     if (e.target.closest('.np-lyrics')) { document.getElementById('btn-lyrics').click(); return; }
     if (e.target.closest('.np-popout')) { document.getElementById('btn-popout').click(); return; }
-    // 曲名を押したら、操作しているタブを表示
-    if (mediaTargetTabId) activateTab(mediaTargetTabId);
+    // 音のボタン・曲名を押したら、操作しているタブを表示
+    if (mediaTargetTabId) { activateTab(mediaTargetTabId); npChipEl.blur(); }
 });
 
 // ---------- 歌詞の 1 行（アドレスバーの下） ----------
