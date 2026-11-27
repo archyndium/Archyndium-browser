@@ -66,7 +66,8 @@ Space キーでタイミングを付けて、自分で作ったりできます�
 ・ページ翻訳と動画の字幕翻訳（英語 ⇔ 日本語、この PC の中だけで翻訳）
 ・タブ・リンクのプレビュー、コピー制限の解除と文字の取り出し
 ・ブックマークの追加・編集を右クリックから
-・タブを別のウィンドウへ移す・ウィンドウをまとめる
+・タブを引き出すとすぐ別のウィンドウに。別のウィンドウのタブバーへ戻すことも
+・通信が遅い時の読み込み中の表示、細いウィンドウでのボタンのまとめ表示
 ・ミニプレイヤーのガラス表示と大きさの変更、音量をサイトと同期
 ・動作を軽くし、検索候補・広告ブロック・ウィンドウの移動などの不具合を修正
 ```
@@ -158,7 +159,8 @@ Version 0.2.0
 - On-device page and subtitle translation (English ⇔ Japanese)
 - Tab and link previews; unlock copy-protected pages and extract text
 - Add and edit bookmarks from right-click menus
-- Move tabs between windows and merge windows
+- Pull a tab out to make it a window right away, or drop it on another window's tab bar
+- Loading indicator for slow connections; toolbar buttons fold into a menu in narrow windows
 - Mini player glass mode and resizing; volume stays in sync with the site
 - Faster, plus fixes for search suggestions, ad blocking and window dragging
 ```
