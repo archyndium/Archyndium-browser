@@ -307,6 +307,13 @@
     </div>
 
     <div class="webview-container" id="webview-container">
+      <!-- ▼ 追加：読み込み中の表示（renderer/page-loading.js） -->
+      <div class="page-progress" id="page-progress" aria-hidden="true"></div>
+      <div class="page-loader" id="page-loader" role="status" aria-live="polite">
+        <div class="pl-spinner" aria-hidden="true"></div>
+        <div class="pl-host">読み込んでいます</div>
+        <div class="pl-slow">接続に時間がかかっています。インターネットの接続を確認してください<button type="button" class="pl-retry">もう一度読み込む</button></div>
+      </div>
       <!-- ▼ 追加：分割表示の仕切り（ドラッグで比率変更 / ダブルクリックで半分ずつ） -->
       <div class="split-divider" id="split-divider" style="display:none">
         <div class="split-ctl">
@@ -446,6 +453,7 @@
 <script src="renderer/search.js"></script>
 <script src="renderer/dialog.js"></script>
 <script src="renderer/tabs.js"></script>
+<script src="renderer/page-loading.js"></script>
 <script src="renderer/tab-sleep.js"></script>
 <script src="renderer/split.js"></script>
 <script src="renderer/panels.js"></script>

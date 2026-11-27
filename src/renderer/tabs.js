@@ -81,6 +81,7 @@ function switchTab(tabId) {
     if (typeof applySplitLayout === 'function') applySplitLayout(); // 分割表示中のタブなら相方も並べて表示する
     if (typeof refreshZoomIndicator === 'function') refreshZoomIndicator();
     if (typeof updateTranslateButton === 'function') updateTranslateButton();
+    if (typeof refreshPageLoading === 'function') refreshPageLoading();
 }
 
 // ▼ タブ（webview）を新規生成する関数
@@ -206,9 +207,10 @@ function createWebviewForTab(tabId, url) {
           // ▼ 追加：マウスのサイドボタン（3 = 戻る / 4 = 進む）をブラウザの戻る・進むにする
           if (!window.__archyndium_mouse_nav) {
             window.__archyndium_mouse_nav = true;
-            window.addEventListener('mouseup', (e) => {
-              if (e.button === 3 || e.button === 4) { e.preventDefault(); console.log('ARCHYNDIUM_NAV:' + (e.button === 3 ? 'back' : 'forward')); }
-            }, true);
+            // ▼ 修正：Windows では環境によって mouseup が届かないことがあるため、pointerup・auxclick でも受ける（重複は本体側で 1 回にまとめる）
+            const sideNav = (e) => { if (e.button === 3 || e.button === 4) { e.preventDefault(); e.stopPropagation(); console.log('ARCHYNDIUM_NAV:' + (e.button === 3 ? 'back' : 'forward')); } };
+            ['mouseup', 'pointerup', 'auxclick'].forEach(t => window.addEventListener(t, sideNav, true));
+            window.addEventListener('mousedown', (e) => { if (e.button === 3 || e.button === 4) e.preventDefault(); }, true);
             // 分割表示で、クリックした側のページを操作対象にするための合図
             window.addEventListener('mousedown', () => console.log('ARCHYNDIUM_PANE_FOCUS'), true);
           }
@@ -400,6 +402,7 @@ function createWebviewForTab(tabId, url) {
 
     document.getElementById('webview-container').appendChild(wv);
     webviews[tabId] = wv;
+    if (typeof attachLoadingState === 'function') attachLoadingState(tabId, wv);   // ▼ 追加：読み込み中の表示
     return wv;
 }
 
@@ -407,7 +410,7 @@ function createWebviewForTab(tabId, url) {
 // 戻る・進む・リロードボタンの処理をWebviewに直接命令する
 document.getElementById('btn-back').addEventListener('click', () => { if(activeTabId && webviews[activeTabId] && webviews[activeTabId].canGoBack()) webviews[activeTabId].goBack(); });
 document.getElementById('btn-forward').addEventListener('click', () => { if(activeTabId && webviews[activeTabId] && webviews[activeTabId].canGoForward()) webviews[activeTabId].goForward(); });
-document.getElementById('btn-reload').addEventListener('click', () => { if(activeTabId && webviews[activeTabId]) webviews[activeTabId].reload(); });
+document.getElementById('btn-reload').addEventListener('click', () => { if (typeof pressReload === 'function') pressReload(); else if (activeTabId && webviews[activeTabId]) webviews[activeTabId].reload(); });   // ▼ 変更：読み込み中は中止（page-loading.js）
 
 // URLバーの Enter 処理（URL 判定・検索エンジン・候補表示）は search.js に移動
 

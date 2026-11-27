@@ -15,6 +15,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   applySavedTheme(); // ▼ 追加：前回選んだテーマ
 
   // ▼ 変更：前回のタブ・グループを復元。無ければ従来通り Google のタブ + Development グループ
+  // ▼ 修正：Development グループは「初めて起動した時」だけ作る（以前は、タブをすべて閉じてから起動し直すたびに復活していた）
+  let firstRun = false;
+  try { firstRun = localStorage.getItem('archyndium_sessions') === null && localStorage.getItem('archyndium_session') === null && !localStorage.getItem('archyndium_default_group_done'); } catch (e) {}
   const session = await restoreSession();
   if (!session.hasTab) {
     // 別ウィンドウで開く URL・シークレット指定があればそれを使う（タブを別ウィンドウへ移動した時など）
@@ -24,8 +27,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // UIのレイアウト計算が完全に終了するまで 0.15秒 待ってからタブを配置する（座標ズレを解消）
     setTimeout(() => initTab.click(), 150);
   }
-  if (!session.usedSession) {
+  if (!session.usedSession && firstRun) {
     document.getElementById('tabs-container').appendChild(createGroupElement('Development', 0));
+    try { localStorage.setItem('archyndium_default_group_done', '1'); } catch (e) {}
   }
   initSessionAutosave();
 

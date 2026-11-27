@@ -1362,3 +1362,24 @@ body.layout-top .tb-hidden { display: none !important; }
 .ts-tabs.ts-narrow .ts-tab.active:not(.pinned) .favicon { display: none; }
 .ts-tabs.ts-narrow .ts-tab.active .ts-x { position: static; opacity: 1; }
 @media (max-width: 640px) { body.layout-top .ts-drag { min-width: 40px; } }
+
+/* ▼ 追加：ページの読み込み中の表示（renderer/page-loading.js） */
+.page-progress { position: absolute; z-index: 30; height: 2px; overflow: hidden; pointer-events: none; display: none; border-radius: 2px; }
+.page-progress.show { display: block; }
+.page-progress::before { content: ''; position: absolute; top: 0; bottom: 0; width: 35%; border-radius: 2px; background: var(--theme-light); animation: page-progress 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
+@keyframes page-progress { from { left: -35%; } to { left: 100%; } }
+.page-loader { position: absolute; z-index: 29; display: none; flex-direction: column; align-items: center; justify-content: center; gap: 14px; border-radius: 10px;
+  background: var(--bg-canvas); color: var(--text-muted); font-size: 13px; text-align: center; padding: 24px; border-radius: 8px; }
+.page-loader.show { display: flex; animation: page-loader-in 0.2s ease; }
+@keyframes page-loader-in { from { opacity: 0; } }
+.pl-spinner { width: 28px; height: 28px; border-radius: 50%; border: 2.5px solid rgba(var(--ink), 0.12); border-top-color: var(--theme-light); animation: pl-spin 0.8s linear infinite; }
+@keyframes pl-spin { to { transform: rotate(360deg); } }
+.pl-host { color: var(--text-primary); font-size: 14px; max-width: 90%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl-slow { display: none; flex-direction: column; align-items: center; gap: 10px; max-width: 340px; line-height: 1.6; }
+.page-loader.slow .pl-slow { display: flex; }
+.pl-retry { border: 1px solid var(--border-subtle); background: rgba(var(--ink), 0.06); color: var(--text-primary); border-radius: 8px; padding: 6px 14px; font: inherit; cursor: pointer; }
+.pl-retry:hover { background: rgba(var(--ink), 0.1); }
+#btn-reload.spin svg { animation: pl-spin 0.5s ease-out 1; }
+.ts-tab.loading .favicon, .tab-card.loading .favicon { animation: tab-loading 1s ease-in-out infinite; }
+@keyframes tab-loading { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .page-progress::before { animation-duration: 2.4s; } .pl-spinner, #btn-reload.spin svg, .ts-tab.loading .favicon, .tab-card.loading .favicon { animation: none; } }

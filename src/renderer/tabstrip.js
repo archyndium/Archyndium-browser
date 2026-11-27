@@ -58,6 +58,7 @@ function tsTabHtml(card, group) {
     if (card.classList.contains('pinned')) cls.push('pinned');
     if (card.classList.contains('private')) cls.push('private');
     if (card.classList.contains('sleeping')) cls.push('sleeping');
+    if (card.classList.contains('loading')) cls.push('loading');
     if (!tsKnown.has(id)) cls.push('ts-enter');
     const audio = card.querySelector('.tab-audio');
     const showAudio = audio && audio.style.display !== 'none';

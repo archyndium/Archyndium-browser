@@ -105,9 +105,9 @@ window.electronAPI?.onShortcut((action) => {
 });
 
 // サイドバーなど webview の外でマウスのサイドボタンを押した時
-document.addEventListener('mouseup', (e) => {
+['mouseup', 'pointerup', 'auxclick'].forEach(t => document.addEventListener(t, (e) => {
     if (e.button === 3 || e.button === 4) { e.preventDefault(); navigateHistory(e.button === 3 ? 'back' : 'forward'); }
-});
+}));
 
 // Ctrl+クリック / 中クリックされたリンクを裏で新しいタブとして開く
 // シークレットタブ内のリンクはシークレットタブで開く
